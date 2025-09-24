@@ -39,3 +39,5 @@ install(
     RUNTIME DESTINATION ${blast_install_bindir}/ld
     PUBLIC_HEADER DESTINATION ${blast_install_includedir}/ld
 )
+
+list(APPEND CMAKE_INSTALL_RPATH ${blast_install_libdir}/ld)
