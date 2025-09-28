@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 include(FetchContent)
 
 set(BLAST_VERSION "0.0.1" CACHE STRING "Blast version")
+# Append 'blast' to every lib names
+set(CMAKE_LIBRARY_PREFIX_CXX "${CMAKE_LIBRARY_PREFIX_CXX}blast")
+
+message("[AF] ${CMAKE_LIBRARY_PREFIX_CXX}")
 
 project(
     blast
@@ -47,6 +51,12 @@ function(blastcore_submodule module)
 endfunction(blastcore_submodule)
 
 
-add_subdirectory(ld)
+
+set(BLAST_CORE_MODULES dyload)
+
+foreach(submod ${BLAST_CORE_MODULES})
+    add_subdirectory(${submod})
+endforeach()
+
 add_subdirectory(core)
 add_subdirectory(blastexe)

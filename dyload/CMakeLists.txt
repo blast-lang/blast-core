@@ -1,5 +1,3 @@
-project(balst::ld)
-
 FetchContent_Declare(
     dylib
     GIT_REPOSITORY "https://github.com/martin-olivier/dylib"
@@ -18,6 +16,9 @@ if(NOT dylib_POPULATED)
   add_subdirectory(${dylib_SOURCE_DIR} ${dylib_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-blastcore_submodule(blastld blastld.hpp blastld.cpp)
+blastcore_submodule(
+  dyload
+  dyload.hpp dyload.cpp
+)
 
-target_link_libraries(blastld dylib)
+target_link_libraries(dyload dylib)

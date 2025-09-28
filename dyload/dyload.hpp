@@ -3,6 +3,6 @@
 
 namespace blast {
 
-namespace ld = dylib;
+namespace dyload = dylib;
 
 } // blast
