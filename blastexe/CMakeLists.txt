@@ -14,12 +14,12 @@ set_target_properties(blast PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH TRUE
     BUILD_WITH_INSTALL_RPATH TRUE
     # Set RPATH with relative path
-    # For example if 'blast' is in 'blast/bin', then 'core' will be found in 'blast/lib/' = '../lib/'
+    # For example if 'blast' is in 'blast/bin', then 'balstcore' will be found in 'blast/lib/' = '../lib/'
     # Same for 'core' link-time dependencies 
-    INSTALL_RPATH "\$ORIGIN:\$ORIGIN/../lib:\$ORIGIN/../lib/ld"
+    INSTALL_RPATH "\$ORIGIN:\$ORIGIN/../lib:\$ORIGIN/../lib/blastld"
 )
 
-target_link_libraries(blast core CLI11)
+target_link_libraries(blast blastcore CLI11)
 
 install(
     TARGETS blast

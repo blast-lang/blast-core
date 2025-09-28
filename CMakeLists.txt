@@ -22,6 +22,31 @@ get_filename_component(blast_install_bindir ${blast_install_dir}/bin ABSOLUTE)
 get_filename_component(blast_install_includedir ${blast_install_dir}/include ABSOLUTE)
 get_filename_component(blast_install_docdir ${blast_install_dir}/doc ABSOLUTE)
 
+function(blastcore_submodule module)
+    add_library(
+        ${module} SHARED
+        # All arguments after the one defined
+        ${ARGN}
+    )
+
+    set_target_properties(${module} PROPERTIES 
+    # Register '${module}.hpp' as this module's header
+        PUBLIC_HEADER ${module}.hpp
+    # Set lib version
+        VERSION ${BLAST_VERSION}
+    )
+
+    install(
+        TARGETS ${module}
+        EXPORT blast::${module}
+        LIBRARY DESTINATION ${blast_install_libdir}/${module}
+        RUNTIME DESTINATION ${blast_install_bindir}/${module}
+        PUBLIC_HEADER DESTINATION ${blast_install_includedir}/${module}
+    )
+    list(APPEND CMAKE_INSTALL_RPATH ${blast_install_libdir}/${module})
+endfunction(blastcore_submodule)
+
+
 add_subdirectory(ld)
 add_subdirectory(core)
 add_subdirectory(blastexe)
