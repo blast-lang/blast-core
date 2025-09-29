@@ -10,13 +10,18 @@ add_executable(
     blast blast.cpp
 )
 
+# For example if 'blast' is in 'blast/bin', then 'core' will be found in 'blast/lib/' = '../lib/'
+# Same for 'core' link-time dependencies
+set(BLASTEXE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/../lib")
+foreach(submod ${BLAST_CORE_MODULES})
+    string(APPEND BLASTEXE_INSTALL_RPATH ":\$ORIGIN/../lib/${submod}")
+endforeach()
+
 set_target_properties(blast PROPERTIES 
     INSTALL_RPATH_USE_LINK_PATH TRUE
     BUILD_WITH_INSTALL_RPATH TRUE
     # Set RPATH with relative path
-    # For example if 'blast' is in 'blast/bin', then 'core' will be found in 'blast/lib/' = '../lib/'
-    # Same for 'core' link-time dependencies 
-    INSTALL_RPATH "\$ORIGIN:\$ORIGIN/../lib:\$ORIGIN/../lib/dyload"
+    INSTALL_RPATH ${BLASTEXE_INSTALL_RPATH}
 )
 
 target_link_libraries(blast core CLI11)

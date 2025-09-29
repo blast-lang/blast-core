@@ -3,9 +3,8 @@ include(FetchContent)
 
 set(BLAST_VERSION "0.0.1" CACHE STRING "Blast version")
 # Append 'blast' to every lib names
-set(CMAKE_LIBRARY_PREFIX_CXX "${CMAKE_LIBRARY_PREFIX_CXX}blast")
-
-message("[AF] ${CMAKE_LIBRARY_PREFIX_CXX}")
+#set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "${CMAKE_LIBRARY_PREFIX}BLAST")
+set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "libBLAST")
 
 project(
     blast
@@ -52,7 +51,7 @@ endfunction(blastcore_submodule)
 
 
 
-set(BLAST_CORE_MODULES dyload)
+set(BLAST_CORE_MODULES dyload filesystem)
 
 foreach(submod ${BLAST_CORE_MODULES})
     add_subdirectory(${submod})
