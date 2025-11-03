@@ -1,1 +1,3 @@
 #pragma one
+
+void hello();

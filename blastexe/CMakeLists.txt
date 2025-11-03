@@ -24,7 +24,28 @@ set_target_properties(blast PROPERTIES
     INSTALL_RPATH ${BLASTEXE_INSTALL_RPATH}
 )
 
-target_link_libraries(blast core CLI11)
+target_include_directories(blast PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+  $<INSTALL_INTERFACE:${blast_install_includedir}>
+)
+
+# Install LLVM libs as 'imported' dependancies
+function(get_llvm_lib lib)
+    add_library(${lib} STATIC IMPORTED)
+    if(UNIX)
+        set_target_properties(
+            ${lib} PROPERTIES 
+            IMPORTED_LOCATION ${BLAST_LLVM_ROOT}/lib/lib${lib}.a
+            INTERFACE_INCLUDE_DIRECTORIES ${BLAST_LLVM_ROOT}/include
+            #CXX_STANDARD 20
+        )
+
+    else()
+        message(FATAL "Blast not yet available on Windows")
+    endif(UNIX)
+endfunction(get_llvm_lib)
+
+target_link_libraries(blast PUBLIC core PRIVATE CLI11)
 
 install(
     TARGETS blast

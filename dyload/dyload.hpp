@@ -4,5 +4,6 @@
 namespace blast {
 
 namespace dyload = dylib;
+void load();
 
 } // blast

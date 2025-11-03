@@ -6,6 +6,13 @@ set(BLAST_VERSION "0.0.1" CACHE STRING "Blast version")
 #set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "${CMAKE_LIBRARY_PREFIX}BLAST")
 set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "libBLAST")
 
+# Where to find BOOST
+set(BLAST_BOOST_ROOT ${BOOST_ROOT} CACHE STRING "Boost install location")
+# Where to find LLVM
+set(BLAST_LLVM_ROOT "" CACHE STRING "LLVM install location")
+# CPP standard
+set (CMAKE_CXX_STANDARD 23)
+
 project(
     blast
     LANGUAGES CXX
