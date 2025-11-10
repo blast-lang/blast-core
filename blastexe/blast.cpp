@@ -4,7 +4,7 @@
 #include "dyload/dyload.hpp"
 #include "core/core.hpp"
 
-
+/*
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -63,11 +63,11 @@ int main(int argc, char **argv) {
   if (argc > 1) {
     clang::tooling::runToolOnCode(std::make_unique<FindNamedClassAction>(), argv[1]);
   }
-}
+}*/
 
-/*
+
 int main(int argc, char** argv) {
     CLI::App app{"blast"};
     //std::cout << "Hello World" << std::endl;
-    blast::load();
-}*/
+    run("toto");
+}
