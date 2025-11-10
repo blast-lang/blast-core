@@ -16,12 +16,12 @@ if(NOT dylib_POPULATED)
   add_subdirectory(${dylib_SOURCE_DIR} ${dylib_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-# Build dylib with 'fPIC'
+# Build dylib with 'fPIC' (as we are using static lib)
 set_property(TARGET dylib PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 blastcore_submodule(
-  dyload
-  dyload.hpp dyload.cpp
+  modules
+  modules.hpp modules.cpp
 )
 
-target_link_libraries(dyload dylib)
+target_link_libraries(modules dylib)

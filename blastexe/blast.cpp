@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "CLI11.hpp"
-#include "dyload/dyload.hpp"
+#include "modules/modules.hpp"
 #include "core/core.hpp"
 
 /*
@@ -69,5 +69,6 @@ int main(int argc, char **argv) {
 int main(int argc, char** argv) {
     CLI::App app{"blast"};
     //std::cout << "Hello World" << std::endl;
+    blast::modules::load();
     run("toto");
 }

@@ -62,7 +62,7 @@ endfunction(blastcore_submodule)
 
 
 
-set(BLAST_CORE_MODULES dyload filesystem)
+set(BLAST_CORE_MODULES modules filesystem)
 
 foreach(submod ${BLAST_CORE_MODULES})
     add_subdirectory(${submod})
