@@ -29,23 +29,58 @@ target_include_directories(blast PUBLIC
   $<INSTALL_INTERFACE:${blast_install_includedir}>
 )
 
+set(CMAKE_INSTALL_MODE SYMLINK_OR_COPY)
+
 # Install LLVM libs as 'imported' dependancies
 function(get_llvm_lib lib)
-    add_library(${lib} STATIC IMPORTED)
+    add_library(${lib} SHARED IMPORTED)
+    # Compute the absolute path to an existing file or directory with symlinks resolved
+    # libLLVM.so -> libLLVM.so.21.1 will link and install libLLVM.so.21.1
+    file(REAL_PATH ${BLAST_LLVM_ROOT}/lib/lib${lib}.so lib_realpath)
+    message("lib${lib}.so -> ${lib_realpath}")
     if(UNIX)
         set_target_properties(
             ${lib} PROPERTIES 
-            IMPORTED_LOCATION ${BLAST_LLVM_ROOT}/lib/lib${lib}.a
+            IMPORTED_LOCATION ${lib_realpath}
             INTERFACE_INCLUDE_DIRECTORIES ${BLAST_LLVM_ROOT}/include
-            #CXX_STANDARD 20
+            # Set RPATH with relative path
+            INSTALL_RPATH ${BLASTEXE_INSTALL_RPATH}
         )
-
+        # Install imported library into blast's lib dir
+        install(
+            FILES ${lib_realpath}
+            DESTINATION ${blast_install_libdir}
+        )
     else()
         message(FATAL "Blast not yet available on Windows")
     endif(UNIX)
 endfunction(get_llvm_lib)
 
-target_link_libraries(blast PUBLIC core PRIVATE CLI11)
+set(LLVM_LINK_COMPONENTS support)
+
+# LLVM libs
+set(LLVM_DEPS 
+    #LLVMCore
+    #LLVMSupport
+    #LLVMDemangle
+    #clangAST
+    #clangASTMatchers
+    #clangBasic
+    #clangFrontend
+    #clangSerialization
+    #clangTooling
+
+    # Shared libs
+    clang
+    clang-cpp
+    LLVM
+)
+
+foreach(lib ${LLVM_DEPS})
+    get_llvm_lib(${lib})
+endforeach()
+
+target_link_libraries(blast PUBLIC core PRIVATE CLI11 ${LLVM_DEPS})
 
 install(
     TARGETS blast

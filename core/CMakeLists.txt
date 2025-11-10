@@ -21,48 +21,15 @@ set_target_properties(core PROPERTIES
     PUBLIC_HEADER core.hpp
 )
 
-# Install LLVM libs as 'imported' dependancies
-function(get_llvm_lib lib)
-    add_library(${lib} STATIC IMPORTED)
-    if(UNIX)
-        set_target_properties(
-            ${lib} PROPERTIES 
-            IMPORTED_LOCATION ${BLAST_LLVM_ROOT}/lib/lib${lib}.a
-            INTERFACE_INCLUDE_DIRECTORIES ${BLAST_LLVM_ROOT}/include
-            #CXX_STANDARD 20
-        )
 
-    else()
-        message(FATAL "Blast not yet available on Windows")
-    endif(UNIX)
-endfunction(get_llvm_lib)
-
-
-# LLVM libs
-set(LLVM_DEPS 
-    LLVMCore
-    LLVMSupport
-    # Solves undefined reference to `llvm::itaniumDemangle`
-    LLVMDemangle
-    # Clang AST libs
-    clangAST
-    clangBasic
-    clangFrontend
-    clangSerialization
-    clangTooling
-)
-foreach(lib ${LLVM_DEPS})
-    get_llvm_lib(${lib})
-endforeach()
-
-target_link_libraries(core PUBLIC ${BLAST_CORE_MODULES} PRIVATE ${LLVM_DEPS})
+#target_link_libraries(core PUBLIC ${BLAST_CORE_MODULES} PRIVATE ${LLVM_DEPS})
+target_link_libraries(core PUBLIC ${BLAST_CORE_MODULES})
 
 install(
     TARGETS core
     EXPORT blast::core
     LIBRARY DESTINATION ${blast_install_libdir}
     RUNTIME DESTINATION ${blast_install_bindir}
-    PUBLIC_HEADER DESTINATION ${blast_install_includedir}
     PUBLIC_HEADER DESTINATION ${blast_install_includedir}
 )
 

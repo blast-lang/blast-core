@@ -12,6 +12,10 @@ set(BLAST_BOOST_ROOT ${BOOST_ROOT} CACHE STRING "Boost install location")
 set(BLAST_LLVM_ROOT "" CACHE STRING "LLVM install location")
 # CPP standard
 set (CMAKE_CXX_STANDARD 23)
+# Linker
+set(CMAKE_LINKER "BLAST_LLVM_ROOT/bin/lld")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 project(
     blast

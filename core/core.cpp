@@ -1,5 +1,5 @@
 
-#include "clang/AST/ASTConsumer.h"
+/*#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
@@ -49,8 +49,9 @@ public:
 };
 
 void run(const std::string& file) {
-    clang::tooling::runToolOnCode(std::make_unique<FindNamedClassAction>(), file);
-}
+    std::string code = "int main() { return 0; }";
+    clang::tooling::runToolOnCode(std::make_unique<FindNamedClassAction>(), "class X {};");
+}*/
 
 /*int main(int argc, char **argv) {
   if (argc > 1) {
