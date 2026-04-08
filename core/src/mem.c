@@ -95,8 +95,15 @@ int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena) {
     return (arena->free_map & mask) == 0;
 }
 
+size_t BLAST_FixedArena_heapsize(const BLAST_FixedArena *const arena) {
+    return (sizeof(arena->memory) * arena->s_block * arena->n_block);
+}
+
 size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena) {
-    return arena->s_block * arena->n_block;
+    return BLAST_FixedArena_heapsize(arena) +
+        sizeof(arena->s_block) +
+        sizeof(arena->n_block) +
+        sizeof(arena->free_map);
 }
 
 BLAST_Error BLAST_FlexArena_create(BLAST_FlexArena **arena, size_t s_block, size_t n_block, size_t max_chunk) {
@@ -195,4 +202,18 @@ BLAST_Error BLAST_FlexArena_free(BLAST_FlexArena *const arena, void **to_free) {
     } else {
         return BLAST_FlexArena_free(arena->start, to_free);
     }
+}
+
+size_t BLAST_FlexArena_heapsize(const BLAST_FlexArena *const arena) {
+    // All chunks are the same size
+    return arena->n_chunk * BLAST_FixedArena_footprint(arena->chunk);
+}
+
+size_t BLAST_FlexArena_footprint(const BLAST_FlexArena *const arena) {
+    return BLAST_FlexArena_heapsize(arena) +
+        sizeof(arena->n_chunk) +
+        sizeof(arena->max_chunk) +
+        sizeof(arena->previous) +
+        sizeof(arena->next) +
+        sizeof(arena->start);
 }

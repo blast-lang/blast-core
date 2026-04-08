@@ -63,6 +63,35 @@ void test_FlexArena_alloc_full(void) {
     BLAST_FlexArena_destroy(&a);
 }
 
+void test_FlexArena_heapsize(void) {
+    BLAST_FlexArena *a = NULL;
+    BLAST_FlexArena_create(&a, 64, 4, 8);
+    // heapsize = n_chunk * BLAST_FixedArena_footprint = 1 * 2072 = 2072
+    TEST_ASSERT_EQUAL(2072, BLAST_FlexArena_heapsize(a));
+    BLAST_FlexArena_destroy(&a);
+}
+
+void test_FlexArena_heapsize_expands(void) {
+    BLAST_FlexArena *a = NULL;
+    BLAST_FlexArena_create(&a, 64, 1, 2);
+    void *b0 = NULL, *b1 = NULL;
+    BLAST_FlexArena_alloc(a, &b0);
+    BLAST_FlexArena_alloc(a, &b1);
+    // heapsize = 2 * BLAST_FixedArena_footprint(64, 1) = 2 * (8*64*1 + 24) = 2 * 536 = 1072
+    TEST_ASSERT_EQUAL(1072, BLAST_FlexArena_heapsize(a));
+    BLAST_FlexArena_destroy(&a);
+}
+
+void test_FlexArena_footprint(void) {
+    BLAST_FlexArena *a = NULL;
+    BLAST_FlexArena_create(&a, 64, 4, 8);
+    // footprint = heapsize + sizeof(n_chunk) + sizeof(max_chunk) + sizeof(previous) + sizeof(next) + sizeof(start)
+    // = 2072 + 8 + 8 + 8 + 8 + 8 = 2112
+    TEST_ASSERT_EQUAL(2072, BLAST_FlexArena_heapsize(a));
+    TEST_ASSERT_EQUAL(2112, BLAST_FlexArena_footprint(a));
+    BLAST_FlexArena_destroy(&a);
+}
+
 void test_FlexArena_free(void) {
     BLAST_FlexArena *a = NULL;
     BLAST_FlexArena_create(&a, 64, 4, 8);

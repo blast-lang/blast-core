@@ -32,6 +32,9 @@ int main(void) {
     RUN_TEST(test_FlexArena_alloc);
     RUN_TEST(test_FlexArena_alloc_expands);
     RUN_TEST(test_FlexArena_alloc_full);
+    RUN_TEST(test_FlexArena_heapsize);
+    RUN_TEST(test_FlexArena_heapsize_expands);
+    RUN_TEST(test_FlexArena_footprint);
     RUN_TEST(test_FlexArena_free);
 
     return UNITY_END();

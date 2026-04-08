@@ -100,16 +100,21 @@ void test_FixedArena_set_memory(void) {
 void test_FixedArena_footprint(void) {
     BLAST_FixedArena *a = NULL;
     BLAST_FixedArena_create(&a, 64, 4);
-    // s_block is aligned to 16 bytes: BLAST_ALIGN(64, 16) = 64
-    TEST_ASSERT_EQUAL(64 * 4, BLAST_FixedArena_footprint(a));
+    // heapsize: sizeof(char*) * s_block * n_block = 8 * 64 * 4 = 2048
+    TEST_ASSERT_EQUAL(2048, BLAST_FixedArena_heapsize(a));
+    // footprint: heapsize + sizeof(s_block) + sizeof(n_block) + sizeof(free_map) = 2048 + 24 = 2072
+    TEST_ASSERT_EQUAL(2072, BLAST_FixedArena_footprint(a));
     BLAST_FixedArena_destroy(&a);
 }
 
 void test_FixedArena_footprint_with_alignment(void) {
     BLAST_FixedArena *a = NULL;
     BLAST_FixedArena_create(&a, 17, 4);
-    // s_block is aligned to 16 bytes: BLAST_ALIGN(17, 16) = 32
-    TEST_ASSERT_EQUAL(32 * 4, BLAST_FixedArena_footprint(a));
+    // s_block aligned to 16 bytes: BLAST_ALIGN(17, 16) = 32
+    // heapsize: 8 * 32 * 4 = 1024
+    TEST_ASSERT_EQUAL(1024, BLAST_FixedArena_heapsize(a));
+    // footprint: 1024 + 24 = 1048
+    TEST_ASSERT_EQUAL(1048, BLAST_FixedArena_footprint(a));
     BLAST_FixedArena_destroy(&a);
 }
 

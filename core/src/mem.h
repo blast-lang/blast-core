@@ -55,7 +55,9 @@ BLAST_Error BLAST_FixedArena_free(BLAST_FixedArena *const arena, void **to_free)
 int BLAST_FixedArena_is_empty(const BLAST_FixedArena *const arena);
 // Tells if the blocks are all used
 int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena);
-// Get the actual heap memory used by the blocks, in bytes
+// Get the heap memory used by the block data, in bytes
+size_t BLAST_FixedArena_heapsize(const BLAST_FixedArena *const arena);
+// Get the total memory footprint of the arena (heap data + struct metadata), in bytes
 size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena);
 
 
@@ -84,7 +86,13 @@ BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena);
 BLAST_Error BLAST_FlexArena_alloc(BLAST_FlexArena *const arena, void **to_alloc);
 // Free a given pointer from the Arena
 BLAST_Error BLAST_FlexArena_free(BLAST_FlexArena *const arena, void **to_free);
+// Get the actual heap memory used by the chunks, in bytes
+size_t BLAST_FlexArena_heapsize(const BLAST_FlexArena *const arena);
+// Get the total footprint of the arena
+size_t BLAST_FlexArena_footprint(const BLAST_FlexArena *const arena);
 
-
+// Multipool of arenas, dynamicaly create new ones depending on allocation needs
+typedef struct BLAST_MultiArena {
+} BLAST_MultiArena;
 
 #endif /* BLAST_MEM_H */
