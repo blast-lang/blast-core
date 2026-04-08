@@ -31,7 +31,7 @@ extern BLAST_MemAllocator *BLAST_GlobalAllocator;
   BLAST_ALIGN(17, 16)  // → 32 (16-byte aligned)
   BLAST_ALIGN(17, 64)  // → 64 (64-byte aligned)
 */
-#define BLAST_ALIGN(m, n) (m+n-1) & ~(n-1)
+#define BLAST_ALIGN(m, n) (((m)+(n)-1) & ~((n)-1))
 
 // Fixed size Arena with fixed size blocks
 // At most, this object allocates `s_block` * `n_block` bytes of memory
@@ -61,7 +61,7 @@ size_t BLAST_FixedArena_heapsize(const BLAST_FixedArena *const arena);
 size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena);
 
 
-// Resizable arena
+// Resizable arena, it will have chunks of `n_block` blocks of size `s_block`
 // Resizes when a given arena if full by creating a similar arena
 // Resizes until maximum allowed memory is reached 
 typedef struct BLAST_FlexArena {
@@ -76,7 +76,7 @@ typedef struct BLAST_FlexArena {
     struct BLAST_FlexArena *start;
 } BLAST_FlexArena;
 
-// Create the Arena
+// Create the Arena, it will have chunks of `n_block` blocks of size `s_block`
 // This function pre-allocates a chunk of `s_block` * `n_block` bytes of memory
 // The Arena max size is thus `max_chunk` * `s_block` * `n_block` bytes of memory
 BLAST_Error BLAST_FlexArena_create(BLAST_FlexArena **arena, size_t s_block, size_t n_block, size_t max_chunk);
@@ -92,7 +92,9 @@ size_t BLAST_FlexArena_heapsize(const BLAST_FlexArena *const arena);
 size_t BLAST_FlexArena_footprint(const BLAST_FlexArena *const arena);
 
 // Multipool of arenas, dynamicaly create new ones depending on allocation needs
+// Each arena have blocks twice as big as the previous arena, starting with 8
 typedef struct BLAST_MultiArena {
+    
 } BLAST_MultiArena;
 
 #endif /* BLAST_MEM_H */

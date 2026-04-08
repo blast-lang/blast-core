@@ -30,7 +30,7 @@ BLAST_Error BLAST_FixedArena_create(BLAST_FixedArena **arena, size_t s_block, si
     // All blocks are free
     (*arena)->free_map = ~(size_t)0;
     // Block size are multiple of 16 bytes to ease SIMD and cache hit
-    (*arena)->s_block = BLAST_ALIGN(s_block, 16);
+    (*arena)->s_block = BLAST_ALIGN(s_block, MIN(s_block, 16));
     (*arena)->n_block = n_block;
     // Setup memory buffer
     (*arena)->memory = (char*)malloc(sizeof(char)*(*arena)->s_block*(*arena)->n_block);
