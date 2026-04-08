@@ -34,14 +34,16 @@ extern BLAST_MemAllocator *BLAST_GlobalAllocator;
 #define BLAST_ALIGN(m, n) (m+n-1) & ~(n-1)
 
 // Fixed size Arena with fixed size blocks
+// At most, this object allocates `s_block` * `n_block` bytes of memory
 typedef struct BLAST_FixedArena {
     char *memory; // Total fixed memory (s_block * n_block)
-    size_t s_block; 
-    size_t n_block;
+    size_t s_block; // Size (in bytes) of a single block
+    size_t n_block; // Number of blocks in the arena
     size_t free_map;  // Bitmap: 1 bit per block
 } BLAST_FixedArena;
 
 // Create the Arena
+// At most, this function allocates `s_block` * `n_block` bytes of memory
 BLAST_Error BLAST_FixedArena_create(BLAST_FixedArena **arena, size_t s_block, size_t n_block);
 // Detroy the Arena and its memory
 BLAST_Error BLAST_FixedArena_destroy(BLAST_FixedArena **arena);
@@ -49,5 +51,38 @@ BLAST_Error BLAST_FixedArena_destroy(BLAST_FixedArena **arena);
 BLAST_Error BLAST_FixedArena_alloc(BLAST_FixedArena *const arena, void **to_alloc);
 // Free a given pointer from the Arena
 BLAST_Error BLAST_FixedArena_free(BLAST_FixedArena *const arena, void **to_free);
+// Tells if the blocs are all empty
+int BLAST_FixedArena_is_empty(const BLAST_FixedArena *const arena);
+// Tells if the blocs are all used
+int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena);
+// Get the actual heap memory used by the blocks, in bytes
+size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena);
+
+
+// Resizable arena
+// Resizes when a given arena if full by creating a similar arena
+// Resizes until maximum allowed memory is reached 
+typedef struct BLAST_FlexArena {
+    size_t n_chunk; // Number of chunks already in the arena
+    size_t max_chunk; // Maximum number of chunks allowed in the arena
+    struct BLAST_FixedArena *chunk; // Actual chunk of data
+    // Recursive structure to allow for multiple chunk created dynamicly
+    // Double linked-list to avoid defragmentation
+    struct BLAST_FlexArena *previous;
+    struct BLAST_FlexArena *next;
+    // Also point to start to ease with management and metrics
+    struct BLAST_FlexArena *start;
+} BLAST_FlexArena;
+
+// Create the Arena
+// This function pre-allocates a chunk of `s_block` * `n_block` bytes of memory
+// The Arena max size is thus `max_chunk` * `s_block` * `n_block` bytes of memory
+BLAST_Error BLAST_FlexArena_create(BLAST_FlexArena **arena, size_t s_block, size_t n_block, size_t max_chunk);
+// Detroy the Arena and its memory
+BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena);
+// Get an allocated pointer for the Arena
+BLAST_Error BLAST_FlexdArena_alloc(BLAST_FlexArena *const arena, void **to_alloc);
+// Free a given pointer from the Arena
+BLAST_Error BLAST_FlexdArena_free(BLAST_FlexArena *const arena, void **to_free);
 
 #endif /* BLAST_MEM_H */

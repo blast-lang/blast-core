@@ -28,7 +28,7 @@ BLAST_Error BLAST_FixedArena_create(BLAST_FixedArena **arena, size_t s_block, si
     *arena = (BLAST_FixedArena*)malloc(sizeof(BLAST_FixedArena));
     if (*arena == NULL) return BLAST_BAD_ALLOC;
     // All blocks are free
-    (*arena)->free_map = ~0u;
+    (*arena)->free_map = ~(size_t)0;
     // Block size are mutiple of 16 bytes to ease SIMD and cache hit
     (*arena)->s_block = BLAST_ALIGN(s_block, 16);
     (*arena)->n_block = n_block;
@@ -55,9 +55,9 @@ BLAST_Error BLAST_FixedArena_alloc(BLAST_FixedArena *const arena, void **to_allo
     }
     // We need to find the first available block in the arena
     for (size_t i = 0; i < arena->n_block; i++) {
-        if (arena->free_map & (1u << (i % arena->s_block))) {
+        if (arena->free_map & ((size_t)1 << (i % arena->s_block))) {
             // Mark block as now used
-            arena->free_map &= ~(1u << (i % arena->s_block));
+            arena->free_map &= ~((size_t)1 << (i % arena->s_block));
             // Return a pointer to this block
             (*to_alloc) = arena->memory + (i * arena->s_block);
             return BLAST_NO_ERROR;
@@ -79,8 +79,120 @@ BLAST_Error BLAST_FixedArena_free(BLAST_FixedArena *const arena, void **to_free)
         return BLAST_BAD_BLOCK;
     }
     // Don't free anything really, but mark block as free
-    arena->free_map |= (1u << block);
+    arena->free_map |= ((size_t)1 << block);
     (*to_free) = NULL;
     // TODO: Use `memset` to 0-out block data?
     return BLAST_NO_ERROR;
+}
+
+int BLAST_FixedArena_is_empty(const BLAST_FixedArena *const arena) {
+    return ~(arena->free_map) == 0;
+}
+
+int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena) {
+    // Check if the firsts `n_block` bits are 0
+    size_t mask = ((size_t)1 << arena->n_block) - 1;                                                         
+    return (arena->free_map & mask) == 0;
+}
+
+size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena) {
+    return arena->s_block * arena->n_block;
+}
+
+BLAST_Error BLAST_FlexArena_create(BLAST_FlexArena **arena, size_t s_block, size_t n_block, size_t max_chunk) {
+    *arena = (BLAST_FlexArena*)malloc(sizeof(BLAST_FlexArena));
+    if (*arena == NULL) return BLAST_BAD_ALLOC;
+    // Init
+    (*arena)->n_chunk = 1;
+    (*arena)->max_chunk = max_chunk;
+    (*arena)->chunk = NULL;
+    (*arena)->previous = NULL;
+    (*arena)->next = NULL;
+    // Set start pointer
+    (*arena)->start = *arena;
+    // Pre-allocate the first chunk
+    return BLAST_FixedArena_create(&(*arena)->chunk, s_block, n_block);
+}
+
+BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena) {
+    if ((arena == NULL) || (*arena == NULL)) return BLAST_BAD_ALLOCATOR;
+    // Destroy current Arena content
+    if((*arena)->chunk) {
+        BLAST_FixedArena_destroy(&(*arena)->chunk);
+        (*arena)->chunk = NULL;
+    }
+    // Destroy neighbor chunks
+    if((*arena)->previous) {
+        BLAST_FlexArena_destroy(&(*arena)->previous);
+    }
+    if((*arena)->next) {
+        BLAST_FlexArena_destroy(&(*arena)->next);
+    }
+    free(*arena);
+    *arena = NULL;
+    return BLAST_NO_ERROR;
+}
+
+BLAST_Error BLAST_FlexdArena_alloc(BLAST_FlexArena *const arena, void **to_alloc) {
+    if(!arena) {
+        return BLAST_BAD_ALLOCATOR;
+    }
+    // We only work from the start of the list to the end
+    if (arena == arena->start) {
+        // Find the first chunk that can accomodate the memory needed
+        BLAST_FlexArena *current = arena;
+        BLAST_FlexArena *last = arena;
+        int chunk_found = 0;
+        while(current != NULL && !chunk_found) {
+            if (BLAST_FixedArena_is_full(current->chunk)) {
+                last = current;
+                current = current->next;
+            } else {
+                BLAST_FixedArena_alloc(current->chunk, to_alloc);
+                chunk_found = 1;
+            }
+        }
+        if (chunk_found) return BLAST_NO_ERROR;
+        // No available chunk found, create a new one
+        if (arena->n_chunk == arena->max_chunk) {
+            return BLAST_ARENA_FULL;
+        }
+        BLAST_FlexArena_create(
+            &(last->next), arena->chunk->s_block, arena->chunk->n_block, arena->max_chunk
+        );
+        last->next->start = arena;
+        arena->n_chunk += 1;
+        BLAST_FixedArena_alloc(last->next->chunk, to_alloc);
+        return BLAST_NO_ERROR;
+    } else {
+        return BLAST_FlexdArena_alloc(arena->start, to_alloc);
+    }
+}
+
+BLAST_Error BLAST_FlexdArena_free(BLAST_FlexArena *const arena, void **to_free) {
+    if(!arena) {
+        return BLAST_BAD_ALLOCATOR;
+    }
+    // We only work from the start of the list to the end
+    if (arena == arena->start) {
+        // We need to find in which chunk `to_free` belongs
+        BLAST_FlexArena *current = arena;
+        int chunk_found = 0;
+        while(current != NULL && !chunk_found) {
+            if (BLAST_FixedArena_free(current->chunk, to_free).code == BLAST_BAD_BLOCK_CODE) {
+                // Current chunk full, we move forward
+                current = current->next;
+            } else {
+                chunk_found = 1;
+            }
+        }
+        // We found the chunk ? Check if its now empty
+        // TODO: coalesce with neighbors if they are also empty ?
+        if (BLAST_FixedArena_is_empty(current->chunk)) {
+            // TODO: Remove the chunk ?
+        }
+        return BLAST_NO_ERROR;
+    } else {
+        return BLAST_FlexdArena_free(arena->start, to_free);
+    }
 }
