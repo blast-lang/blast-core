@@ -45,15 +45,15 @@ typedef struct BLAST_FixedArena {
 // Create the Arena
 // At most, this function allocates `s_block` * `n_block` bytes of memory
 BLAST_Error BLAST_FixedArena_create(BLAST_FixedArena **arena, size_t s_block, size_t n_block);
-// Detroy the Arena and its memory
+// Destroy the Arena and its memory
 BLAST_Error BLAST_FixedArena_destroy(BLAST_FixedArena **arena);
 // Get an allocated pointer for the Arena
 BLAST_Error BLAST_FixedArena_alloc(BLAST_FixedArena *const arena, void **to_alloc);
 // Free a given pointer from the Arena
 BLAST_Error BLAST_FixedArena_free(BLAST_FixedArena *const arena, void **to_free);
-// Tells if the blocs are all empty
+// Tells if the blocks are all empty
 int BLAST_FixedArena_is_empty(const BLAST_FixedArena *const arena);
-// Tells if the blocs are all used
+// Tells if the blocks are all used
 int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena);
 // Get the actual heap memory used by the blocks, in bytes
 size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena);
@@ -66,7 +66,7 @@ typedef struct BLAST_FlexArena {
     size_t n_chunk; // Number of chunks already in the arena
     size_t max_chunk; // Maximum number of chunks allowed in the arena
     struct BLAST_FixedArena *chunk; // Actual chunk of data
-    // Recursive structure to allow for multiple chunk created dynamicly
+    // Recursive structure to allow for multiple chunks created dynamically
     // Double linked-list to avoid defragmentation
     struct BLAST_FlexArena *previous;
     struct BLAST_FlexArena *next;
@@ -78,11 +78,13 @@ typedef struct BLAST_FlexArena {
 // This function pre-allocates a chunk of `s_block` * `n_block` bytes of memory
 // The Arena max size is thus `max_chunk` * `s_block` * `n_block` bytes of memory
 BLAST_Error BLAST_FlexArena_create(BLAST_FlexArena **arena, size_t s_block, size_t n_block, size_t max_chunk);
-// Detroy the Arena and its memory
+// Destroy the Arena and its memory
 BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena);
 // Get an allocated pointer for the Arena
-BLAST_Error BLAST_FlexdArena_alloc(BLAST_FlexArena *const arena, void **to_alloc);
+BLAST_Error BLAST_FlexArena_alloc(BLAST_FlexArena *const arena, void **to_alloc);
 // Free a given pointer from the Arena
-BLAST_Error BLAST_FlexdArena_free(BLAST_FlexArena *const arena, void **to_free);
+BLAST_Error BLAST_FlexArena_free(BLAST_FlexArena *const arena, void **to_free);
+
+
 
 #endif /* BLAST_MEM_H */

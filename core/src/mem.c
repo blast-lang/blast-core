@@ -29,7 +29,7 @@ BLAST_Error BLAST_FixedArena_create(BLAST_FixedArena **arena, size_t s_block, si
     if (*arena == NULL) return BLAST_BAD_ALLOC;
     // All blocks are free
     (*arena)->free_map = ~(size_t)0;
-    // Block size are mutiple of 16 bytes to ease SIMD and cache hit
+    // Block size are multiple of 16 bytes to ease SIMD and cache hit
     (*arena)->s_block = BLAST_ALIGN(s_block, 16);
     (*arena)->n_block = n_block;
     // Setup memory buffer
@@ -133,13 +133,13 @@ BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena) {
     return BLAST_NO_ERROR;
 }
 
-BLAST_Error BLAST_FlexdArena_alloc(BLAST_FlexArena *const arena, void **to_alloc) {
+BLAST_Error BLAST_FlexArena_alloc(BLAST_FlexArena *const arena, void **to_alloc) {
     if(!arena) {
         return BLAST_BAD_ALLOCATOR;
     }
     // We only work from the start of the list to the end
     if (arena == arena->start) {
-        // Find the first chunk that can accomodate the memory needed
+        // Find the first chunk that can accommodate the memory needed
         BLAST_FlexArena *current = arena;
         BLAST_FlexArena *last = arena;
         int chunk_found = 0;
@@ -165,11 +165,11 @@ BLAST_Error BLAST_FlexdArena_alloc(BLAST_FlexArena *const arena, void **to_alloc
         BLAST_FixedArena_alloc(last->next->chunk, to_alloc);
         return BLAST_NO_ERROR;
     } else {
-        return BLAST_FlexdArena_alloc(arena->start, to_alloc);
+        return BLAST_FlexArena_alloc(arena->start, to_alloc);
     }
 }
 
-BLAST_Error BLAST_FlexdArena_free(BLAST_FlexArena *const arena, void **to_free) {
+BLAST_Error BLAST_FlexArena_free(BLAST_FlexArena *const arena, void **to_free) {
     if(!arena) {
         return BLAST_BAD_ALLOCATOR;
     }
@@ -193,6 +193,6 @@ BLAST_Error BLAST_FlexdArena_free(BLAST_FlexArena *const arena, void **to_free) 
         }
         return BLAST_NO_ERROR;
     } else {
-        return BLAST_FlexdArena_free(arena->start, to_free);
+        return BLAST_FlexArena_free(arena->start, to_free);
     }
 }
