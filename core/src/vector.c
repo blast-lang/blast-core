@@ -27,6 +27,7 @@ BLAST_Error BLAST_Vector_destroy(BLAST_Vector **v) {
 
 BLAST_Error BLAST_Vector_push(BLAST_Vector *v, const void *elem) {
     if (!v) return BLAST_BAD_ALLOCATOR;
+    // Max size reached, need to expand
     if (v->size == v->capacity) {
         // Growth factor of 2
         size_t new_capacity = v->capacity * 2;
@@ -37,8 +38,8 @@ BLAST_Error BLAST_Vector_push(BLAST_Vector *v, const void *elem) {
         v->data     = new_data;
         v->capacity = new_capacity;
     }
-    // Casting for pointer arythmetic
-    memcpy((char*)v->data + v->size * v->elem_size, elem, v->elem_size);
+    // Casting for pointer arythmetic (v->size * v->elem_size is the end of the data pointer 'readable' memory)
+    memcpy((char*)v->data + (v->size * v->elem_size), elem, v->elem_size);
     v->size++;
     return BLAST_NO_ERROR;
 }
@@ -50,13 +51,13 @@ BLAST_Error BLAST_Vector_pop(BLAST_Vector *v) {
     return BLAST_NO_ERROR;
 }
 
-BLAST_Error BLAST_Vector_get(const BLAST_Vector *v, size_t index, void **out) {
+BLAST_Error BLAST_Vector_get(const BLAST_Vector *const v, size_t index, void **out) {
     if (!v) return BLAST_BAD_ALLOCATOR;
     if (index >= v->size) return BLAST_BAD_BLOCK;
-    *out = (char*)v->data + index * v->elem_size;
+    *out = (char*)v->data + (index * v->elem_size);
     return BLAST_NO_ERROR;
 }
 
-size_t BLAST_Vector_size(const BLAST_Vector *v) {
+size_t BLAST_Vector_size(const BLAST_Vector *const v) {
     return v ? v->size : 0;
 }

@@ -101,6 +101,10 @@ int main(void) {
     RUN_TEST(test_String_append_grows);
     RUN_TEST(test_String_len_empty);
     RUN_TEST(test_String_data_is_valid_c_string);
+    RUN_TEST(test_String_concat);
+    RUN_TEST(test_String_concat_empty_src);
+    RUN_TEST(test_String_concat_empty_dst);
+    RUN_TEST(test_String_concat_null_terminated);
 
     return UNITY_END();
 }

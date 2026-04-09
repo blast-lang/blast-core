@@ -24,13 +24,15 @@ BLAST_Error BLAST_String_push(BLAST_String *s, char c);
 // Append `len` bytes from `src`
 BLAST_Error BLAST_String_append(BLAST_String *s, const char *src, size_t len);
 // Pointer into the internal buffer
-const char* BLAST_String_data(const BLAST_String *s);
+const char* BLAST_String_data(const BLAST_String *const s);
 // String length, excluding null terminator, O(1)
-size_t      BLAST_String_len(const BLAST_String *s);
+size_t BLAST_String_len(const BLAST_String *const s);
+// Copy 'src' into 'dest'
+BLAST_Error BLAST_String_concat(BLAST_String *dest, const BLAST_String *const src);
 
 // Trick to get string literals size before they decay into a pointer
 // The "" s concatenation ensures s is a string literal
 #define BLAST_STRING_CAPTURE(s) ("" s), (sizeof(s)-1)
-#define BLAST_STRING(ptr, s)  BLAST_String_create_from(ptr, BLAST_STRING_CAPTURE(s))
+#define BLAST_STRING(ptr, s)    BLAST_String_create_from(ptr, BLAST_STRING_CAPTURE(s))
 
 #endif /* BLAST_STRING_H */

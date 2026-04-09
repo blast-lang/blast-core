@@ -53,10 +53,14 @@ BLAST_Error BLAST_String_append(BLAST_String *s, const char *src, size_t len) {
     return BLAST_NO_ERROR;
 }
 
-const char *BLAST_String_data(const BLAST_String *s) {
+const char *BLAST_String_data(const BLAST_String *const s) {
     return s ? (const char*)s->buf->data : NULL;
 }
 
-size_t BLAST_String_len(const BLAST_String *s) {
+size_t BLAST_String_len(const BLAST_String *const s) {
     return s ? BLAST_Vector_size(s->buf) : 0;
+}
+
+BLAST_Error BLAST_String_concat(BLAST_String *dest, const BLAST_String *const src) {
+    return BLAST_String_append(dest, BLAST_String_data(src), BLAST_String_len(src));
 }

@@ -102,3 +102,47 @@ void test_String_data_is_valid_c_string(void) {
     TEST_ASSERT_EQUAL_STRING("test", BLAST_String_data(s));
     BLAST_String_destroy(&s);
 }
+
+void test_String_concat(void) {
+    BLAST_String *a = NULL, *b = NULL;
+    BLAST_String_create_from(&a, "foo", 3);
+    BLAST_String_create_from(&b, "bar", 3);
+    BLAST_Error e = BLAST_String_concat(a, b);
+    TEST_ASSERT_EQUAL(BLAST_NO_ERROR_CODE, e.code);
+    TEST_ASSERT_EQUAL(6, BLAST_String_len(a));
+    TEST_ASSERT_EQUAL_STRING("foobar", BLAST_String_data(a));
+    BLAST_String_destroy(&a);
+    BLAST_String_destroy(&b);
+}
+
+void test_String_concat_empty_src(void) {
+    BLAST_String *a = NULL, *b = NULL;
+    BLAST_String_create_from(&a, "hello", 5);
+    BLAST_String_create(&b);
+    BLAST_String_concat(a, b);
+    TEST_ASSERT_EQUAL(5, BLAST_String_len(a));
+    TEST_ASSERT_EQUAL_STRING("hello", BLAST_String_data(a));
+    BLAST_String_destroy(&a);
+    BLAST_String_destroy(&b);
+}
+
+void test_String_concat_empty_dst(void) {
+    BLAST_String *a = NULL, *b = NULL;
+    BLAST_String_create(&a);
+    BLAST_String_create_from(&b, "world", 5);
+    BLAST_String_concat(a, b);
+    TEST_ASSERT_EQUAL(5, BLAST_String_len(a));
+    TEST_ASSERT_EQUAL_STRING("world", BLAST_String_data(a));
+    BLAST_String_destroy(&a);
+    BLAST_String_destroy(&b);
+}
+
+void test_String_concat_null_terminated(void) {
+    BLAST_String *a = NULL, *b = NULL;
+    BLAST_String_create_from(&a, "ab", 2);
+    BLAST_String_create_from(&b, "cd", 2);
+    BLAST_String_concat(a, b);
+    TEST_ASSERT_EQUAL('\0', BLAST_String_data(a)[4]);
+    BLAST_String_destroy(&a);
+    BLAST_String_destroy(&b);
+}

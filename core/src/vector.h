@@ -23,8 +23,8 @@ BLAST_Error BLAST_Vector_push(BLAST_Vector *v, const void *elem);
 // Remove the last element
 BLAST_Error BLAST_Vector_pop(BLAST_Vector *v);
 // Set `*out` to a pointer to the element at `index` (points into the vector buffer)
-BLAST_Error BLAST_Vector_get(const BLAST_Vector *v, size_t index, void **out);
+BLAST_Error BLAST_Vector_get(const BLAST_Vector *const v, size_t index, void **out);
 // Number of elements in the vector
-size_t BLAST_Vector_size(const BLAST_Vector *v);
+size_t BLAST_Vector_size(const BLAST_Vector *const v);
 
 #endif /* BLAST_VECTOR_H */
