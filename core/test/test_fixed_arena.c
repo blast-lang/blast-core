@@ -100,9 +100,7 @@ void test_FixedArena_set_memory(void) {
 void test_FixedArena_footprint(void) {
     BLAST_FixedArena *a = NULL;
     BLAST_FixedArena_create(&a, 64, 4);
-    // heapsize: sizeof(char*) * s_block * n_block = 8 * 64 * 4 = 2048
-    TEST_ASSERT_EQUAL(2048, BLAST_FixedArena_heapsize(a));
-    // footprint: heapsize + sizeof(s_block) + sizeof(n_block) + sizeof(free_map) = 2048 + 24 = 2072
+    // footprint: sizeof(char*) * s_block * n_block + sizeof(s_block) + sizeof(n_block) + sizeof(free_map) = 2048 + 24 = 2072
     TEST_ASSERT_EQUAL(2072, BLAST_FixedArena_footprint(a));
     BLAST_FixedArena_destroy(&a);
 }
@@ -111,9 +109,7 @@ void test_FixedArena_footprint_with_alignment(void) {
     BLAST_FixedArena *a = NULL;
     BLAST_FixedArena_create(&a, 17, 4);
     // s_block aligned to 16 bytes: BLAST_ALIGN(17, 16) = 32
-    // heapsize: 8 * 32 * 4 = 1024
-    TEST_ASSERT_EQUAL(1024, BLAST_FixedArena_heapsize(a));
-    // footprint: 1024 + 24 = 1048
+    // footprint: sizeof(char*) * 32 * 4 + 24 = 1024 + 24 = 1048
     TEST_ASSERT_EQUAL(1048, BLAST_FixedArena_footprint(a));
     BLAST_FixedArena_destroy(&a);
 }
@@ -182,5 +178,49 @@ void test_FixedArena_is_empty_after_free(void) {
     BLAST_FixedArena_alloc(a, &block);
     BLAST_FixedArena_free(a, &block);
     TEST_ASSERT_TRUE(BLAST_FixedArena_is_empty(a));
+    BLAST_FixedArena_destroy(&a);
+}
+
+void test_FixedArena_availablemem_on_create(void) {
+    BLAST_FixedArena *a = NULL;
+    BLAST_FixedArena_create(&a, 64, 4);
+    // All 4 blocks free: 4 * 64 = 256
+    TEST_ASSERT_EQUAL(256, BLAST_FixedArena_availablemem(a));
+    BLAST_FixedArena_destroy(&a);
+}
+
+void test_FixedArena_availablemem_after_alloc(void) {
+    BLAST_FixedArena *a = NULL;
+    BLAST_FixedArena_create(&a, 64, 4);
+    void *b = NULL;
+    BLAST_FixedArena_alloc(a, &b);
+    // 3 of 4 blocks free: 3 * 64 = 192
+    TEST_ASSERT_EQUAL(192, BLAST_FixedArena_availablemem(a));
+    BLAST_FixedArena_destroy(&a);
+}
+
+void test_FixedArena_availablemem_when_full(void) {
+    BLAST_FixedArena *a = NULL;
+    BLAST_FixedArena_create(&a, 64, 4);
+    void *b0 = NULL, *b1 = NULL, *b2 = NULL, *b3 = NULL;
+    BLAST_FixedArena_alloc(a, &b0);
+    BLAST_FixedArena_alloc(a, &b1);
+    BLAST_FixedArena_alloc(a, &b2);
+    BLAST_FixedArena_alloc(a, &b3);
+    TEST_ASSERT_EQUAL(0, BLAST_FixedArena_availablemem(a));
+    BLAST_FixedArena_destroy(&a);
+}
+
+void test_FixedArena_availablemem_after_free(void) {
+    BLAST_FixedArena *a = NULL;
+    BLAST_FixedArena_create(&a, 64, 4);
+    void *b0 = NULL, *b1 = NULL, *b2 = NULL, *b3 = NULL;
+    BLAST_FixedArena_alloc(a, &b0);
+    BLAST_FixedArena_alloc(a, &b1);
+    BLAST_FixedArena_alloc(a, &b2);
+    BLAST_FixedArena_alloc(a, &b3);
+    BLAST_FixedArena_free(a, &b2);
+    // 1 of 4 blocks free: 1 * 64 = 64
+    TEST_ASSERT_EQUAL(64, BLAST_FixedArena_availablemem(a));
     BLAST_FixedArena_destroy(&a);
 }

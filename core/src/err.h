@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define MIN(x,y) ((x) <= (y) ? (x) : (y))
+#define MAX(x,y) ((x) >= (y) ? (x) : (y))
 
 typedef struct BLAST_Error {
     size_t code;

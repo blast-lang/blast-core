@@ -6,26 +6,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct BLAST_MemBlock {
-    struct BLAST_MemBlock *next;
-    struct BLAST_MemBlock *previous;
-    size_t size;
-    char* start;
-    int free;
-} BLAST_MemBlock;
-
-typedef struct BLAST_MemAllocator {
-    char* memory;
-    size_t size;
-    // The first block is always used to pre-allocate
-    struct BLAST_MemBlock start;
-} BLAST_MemAllocator;
-
-
-BLAST_MemAllocator *BLAST_MemAllocator_init(size_t initial_size);
-
-extern BLAST_MemAllocator *BLAST_GlobalAllocator;
-
 /* Given a number 'm' (typically a size), align it to n-byte size
   BLAST_ALIGN(17, 8)   // → 24 (8-byte aligned)
   BLAST_ALIGN(17, 16)  // → 32 (16-byte aligned)
@@ -55,10 +35,11 @@ BLAST_Error BLAST_FixedArena_free(BLAST_FixedArena *const arena, void **to_free)
 int BLAST_FixedArena_is_empty(const BLAST_FixedArena *const arena);
 // Tells if the blocks are all used
 int BLAST_FixedArena_is_full(const BLAST_FixedArena *const arena);
-// Get the heap memory used by the block data, in bytes
-size_t BLAST_FixedArena_heapsize(const BLAST_FixedArena *const arena);
 // Get the total memory footprint of the arena (heap data + struct metadata), in bytes
 size_t BLAST_FixedArena_footprint(const BLAST_FixedArena *const arena);
+// Actual memory free to use in the arena
+size_t BLAST_FixedArena_availablemem(const BLAST_FixedArena *const arena);
+
 
 
 // Resizable arena, it will have chunks of `n_block` blocks of size `s_block`
@@ -86,15 +67,42 @@ BLAST_Error BLAST_FlexArena_destroy(BLAST_FlexArena **arena);
 BLAST_Error BLAST_FlexArena_alloc(BLAST_FlexArena *const arena, void **to_alloc);
 // Free a given pointer from the Arena
 BLAST_Error BLAST_FlexArena_free(BLAST_FlexArena *const arena, void **to_free);
-// Get the actual heap memory used by the chunks, in bytes
-size_t BLAST_FlexArena_heapsize(const BLAST_FlexArena *const arena);
 // Get the total footprint of the arena
 size_t BLAST_FlexArena_footprint(const BLAST_FlexArena *const arena);
+// Actual memory free to use in the arena
+size_t BLAST_FlexArena_availablemem(const BLAST_FlexArena *const arena);
 
-// Multipool of arenas, dynamicaly create new ones depending on allocation needs
-// Each arena have blocks twice as big as the previous arena, starting with 8
+// Number of slots in a MultiArena (one per power of 2: 2^0=1 ... 2^63)
+#define BLAST_MULTIARENA_SLOTS 64
+// Multipool of flexible arenas, one per power-of-2 block size
+// slot[i] holds blocks of size 2^i bytes
+// Allocation is routed to the smallest slot that fits the requested size
 typedef struct BLAST_MultiArena {
-    
+    // Maximum memory footprint allowed across all slots
+    size_t max_mem;
+    // Remaining memory budget;
+    size_t budget;
+    // One FlexArena per power-of-2 block size, lazily created on first use
+    struct BLAST_FlexArena *slots[BLAST_MULTIARENA_SLOTS];
 } BLAST_MultiArena;
+
+// Create the Arena
+BLAST_Error BLAST_MultiArena_create(BLAST_MultiArena **arena);
+BLAST_Error BLAST_MultiArena_create_limit(BLAST_MultiArena **arena, size_t max_mem);
+// Destroy the Arena and its memory
+BLAST_Error BLAST_MultiArena_destroy(BLAST_MultiArena **arena);
+// Request `alloc_size` bytes from the arena, and set the address block in `to_alloc`
+BLAST_Error BLAST_MultiArena_alloc(BLAST_MultiArena *const arena, void **to_alloc, size_t alloc_size);
+// Free a given pointer from the Arena
+BLAST_Error BLAST_MultiArena_free(BLAST_MultiArena *const arena, void **to_free);
+// Get the total footprint of the arena (heap + struct overhead)
+size_t BLAST_MultiArena_footprint(const BLAST_MultiArena *const arena);
+// Actual memory free to use in the arena
+size_t BLAST_MultiArena_availablemem(const BLAST_MultiArena *const arena);
+
+// General purpose
+void* BLAST_alloc(size_t size);
+BLAST_Error BLAST_free(void* ptr);
+
 
 #endif /* BLAST_MEM_H */
