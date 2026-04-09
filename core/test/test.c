@@ -4,6 +4,8 @@
 #include "test_flex_arena.c"
 #include "test_multi_arena.c"
 #include "test_global_alloc.c"
+#include "test_vector.c"
+#include "test_string.c"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -73,6 +75,32 @@ int main(void) {
     RUN_TEST(test_free_returns_no_error);
     RUN_TEST(test_alloc_free_realloc);
     RUN_TEST(test_alloc_different_sizes);
+
+    // vector
+    RUN_TEST(test_Vector_create);
+    RUN_TEST(test_Vector_destroy);
+    RUN_TEST(test_Vector_push);
+    RUN_TEST(test_Vector_push_preserves_data);
+    RUN_TEST(test_Vector_push_grows);
+    RUN_TEST(test_Vector_push_grows_preserves_data);
+    RUN_TEST(test_Vector_pop);
+    RUN_TEST(test_Vector_pop_empty);
+    RUN_TEST(test_Vector_get);
+    RUN_TEST(test_Vector_get_out_of_bounds);
+    RUN_TEST(test_Vector_size);
+
+    // string
+    RUN_TEST(test_String_create);
+    RUN_TEST(test_String_destroy);
+    RUN_TEST(test_String_create_from);
+    RUN_TEST(test_String_create_from_partial);
+    RUN_TEST(test_String_push);
+    RUN_TEST(test_String_push_null_terminated);
+    RUN_TEST(test_String_append);
+    RUN_TEST(test_String_append_multiple);
+    RUN_TEST(test_String_append_grows);
+    RUN_TEST(test_String_len_empty);
+    RUN_TEST(test_String_data_is_valid_c_string);
 
     return UNITY_END();
 }

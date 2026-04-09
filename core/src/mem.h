@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <pthread.h>
 
 /* Given a number 'm' (typically a size), align it to n-byte size
   BLAST_ALIGN(17, 8)   // → 24 (8-byte aligned)
@@ -80,9 +81,12 @@ size_t BLAST_FlexArena_availablemem(const BLAST_FlexArena *const arena);
 typedef struct BLAST_MultiArena {
     // Maximum memory footprint allowed across all slots
     size_t max_mem;
-    // Remaining memory budget;
+    // Remaining memory budget; guarded by budget_lock
     size_t budget;
+    pthread_mutex_t budget_lock;
     // One FlexArena per power-of-2 block size, lazily created on first use
+    // Each slot is independently guarded by its own lock
+    pthread_mutex_t slot_locks[BLAST_MULTIARENA_SLOTS];
     struct BLAST_FlexArena *slots[BLAST_MULTIARENA_SLOTS];
 } BLAST_MultiArena;
 

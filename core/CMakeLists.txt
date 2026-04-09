@@ -1,5 +1,7 @@
 add_library(core SHARED
     src/mem.c
+    src/vector.c
+    src/str.c
 )
 
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -20,5 +22,5 @@ target_include_directories(core_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_test(NAME core_test COMMAND core_test)
 set_tests_properties(core_test PROPERTIES
-    ENVIRONMENT "PATH=$<TARGET_FILE_DIR:core>;$ENV{PATH}"
+    ENVIRONMENT "PATH=$<TARGET_FILE_DIR:core>;/c/msys64/ucrt64/bin;$ENV{PATH}"
 )

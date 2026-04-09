@@ -5,7 +5,6 @@
 //#define BLAST_GLOBAL_ALLOCATOR_SIZE (1024 * 1024) // 1 MB
 #define BLAST_GLOBAL_ALLOCATOR_SIZE SIZE_MAX
 static BLAST_MultiArena *BLAST_GlobalAllocator = NULL;
-static pthread_mutex_t BLAST_GlobalAllocator_lock = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((constructor))
 static void BLAST_GlobalAllocator_init(void) {
@@ -17,24 +16,18 @@ static void BLAST_GlobalAllocator_destroy(void) {
     if (BLAST_GlobalAllocator) {
         BLAST_MultiArena_destroy(&BLAST_GlobalAllocator);
     }
-    pthread_mutex_destroy(&BLAST_GlobalAllocator_lock);
 }
 
 void* BLAST_alloc(size_t size) {
-    pthread_mutex_lock(&BLAST_GlobalAllocator_lock);
     void *ptr = NULL;
     if (BLAST_GlobalAllocator) {
         BLAST_MultiArena_alloc(BLAST_GlobalAllocator, &ptr, size);
     }
-    pthread_mutex_unlock(&BLAST_GlobalAllocator_lock);
     return ptr;
 }
 
 BLAST_Error BLAST_free(void* ptr) {
-    pthread_mutex_lock(&BLAST_GlobalAllocator_lock);
-    BLAST_Error e = BLAST_MultiArena_free(BLAST_GlobalAllocator, &ptr);
-    pthread_mutex_unlock(&BLAST_GlobalAllocator_lock);
-    return e;
+    return BLAST_MultiArena_free(BLAST_GlobalAllocator, &ptr);
 }
 
 
@@ -269,9 +262,11 @@ BLAST_Error BLAST_MultiArena_create_limit(BLAST_MultiArena **arena, size_t max_m
     if (*arena == NULL) return BLAST_BAD_ALLOC;
     (*arena)->max_mem = max_mem;
     (*arena)->budget = max_mem;
+    pthread_mutex_init(&(*arena)->budget_lock, NULL);
     // All slots start NULL — created lazily on first allocation
     for (size_t i = 0; i < BLAST_MULTIARENA_SLOTS; i++) {
         (*arena)->slots[i] = NULL;
+        pthread_mutex_init(&(*arena)->slot_locks[i], NULL);
     }
     return BLAST_NO_ERROR;
 }
@@ -287,7 +282,9 @@ BLAST_Error BLAST_MultiArena_destroy(BLAST_MultiArena **arena) {
             BLAST_FlexArena_destroy(&(*arena)->slots[i]);
             (*arena)->slots[i] = NULL;
         }
+        pthread_mutex_destroy(&(*arena)->slot_locks[i]);
     }
+    pthread_mutex_destroy(&(*arena)->budget_lock);
     free(*arena);
     *arena = NULL;
     return BLAST_NO_ERROR;
@@ -313,40 +310,58 @@ BLAST_Error BLAST_MultiArena_alloc(BLAST_MultiArena *const arena, void **to_allo
     size_t fixed_footprint = sizeof(char*) * s * n + 3 * sizeof(size_t);
     size_t chunk_footprint = fixed_footprint + 5 * sizeof(size_t);
 
+    pthread_mutex_lock(&arena->slot_locks[slotsize]);
+
+    BLAST_Error result;
     if (arena->slots[slotsize] == NULL) {
         // Slot doesn't exist yet — check budget before creating it
+        pthread_mutex_lock(&arena->budget_lock);
         if (arena->budget < chunk_footprint) {
+            pthread_mutex_unlock(&arena->budget_lock);
+            pthread_mutex_unlock(&arena->slot_locks[slotsize]);
             return BLAST_ARENA_FULL;
         }
         BLAST_FlexArena *slot = NULL;
         // We don't want `s_block`*`n_block` <= 1024 to avoid too many allocs
         BLAST_FlexArena_create(&slot, s, n, SIZE_MAX);
         arena->budget -= chunk_footprint;
+        pthread_mutex_unlock(&arena->budget_lock);
         arena->slots[slotsize] = slot;
         // Slot is new, so memory space is guaranteed
-        return BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
+        result = BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
     } else {
         // Slot exists — use it if a free block is already available
         if (BLAST_FlexArena_availablemem(arena->slots[slotsize]) >= alloc_size) {
-            return BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
+            result = BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
+        } else {
+            // Slot is full — a new chunk is needed, check budget
+            pthread_mutex_lock(&arena->budget_lock);
+            if (arena->budget < chunk_footprint) {
+                pthread_mutex_unlock(&arena->budget_lock);
+                pthread_mutex_unlock(&arena->slot_locks[slotsize]);
+                return BLAST_ARENA_FULL;
+            }
+            arena->budget -= chunk_footprint;
+            pthread_mutex_unlock(&arena->budget_lock);
+            result = BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
         }
-        // Slot is full — a new chunk is needed, check budget
-        if (arena->budget < chunk_footprint) {
-            return BLAST_ARENA_FULL;
-        }
-        arena->budget -= chunk_footprint;
-        return BLAST_FlexArena_alloc(arena->slots[slotsize], to_alloc);
     }
+
+    pthread_mutex_unlock(&arena->slot_locks[slotsize]);
+    return result;
 }
 
 BLAST_Error BLAST_MultiArena_free(BLAST_MultiArena *const arena, void **to_free) {
     if(!arena) {
         return BLAST_BAD_ALLOCATOR;
     }
-    // Try to free from every slots, only the slot managing the pointer will actually free space
+    // Try each slot independently; stop as soon as the owning slot frees the pointer
     for (size_t i = 0; i < BLAST_MULTIARENA_SLOTS; i++) {
         if (arena->slots[i] != NULL) {
-            BLAST_FlexArena_free(arena->slots[i], to_free);
+            pthread_mutex_lock(&arena->slot_locks[i]);
+            BLAST_Error e = BLAST_FlexArena_free(arena->slots[i], to_free);
+            pthread_mutex_unlock(&arena->slot_locks[i]);
+            if (e.code == BLAST_NO_ERROR_CODE) return BLAST_NO_ERROR;
         }
     }
     return BLAST_NO_ERROR;
