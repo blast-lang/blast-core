@@ -1,15 +1,15 @@
 #include "mem.h"
 #include <stdlib.h>
+#include <pthread.h>
 
 //#define BLAST_GLOBAL_ALLOCATOR_SIZE (1024 * 1024) // 1 MB
 #define BLAST_GLOBAL_ALLOCATOR_SIZE SIZE_MAX
-BLAST_MultiArena *BLAST_GlobalAllocator = NULL;
+static BLAST_MultiArena *BLAST_GlobalAllocator = NULL;
+static pthread_mutex_t BLAST_GlobalAllocator_lock = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((constructor))
 static void BLAST_GlobalAllocator_init(void) {
-    if (!BLAST_GlobalAllocator) {
-        BLAST_MultiArena_create_limit(&BLAST_GlobalAllocator, BLAST_GLOBAL_ALLOCATOR_SIZE);
-    }
+    BLAST_MultiArena_create_limit(&BLAST_GlobalAllocator, BLAST_GLOBAL_ALLOCATOR_SIZE);
 }
 
 __attribute__((destructor))
@@ -17,18 +17,24 @@ static void BLAST_GlobalAllocator_destroy(void) {
     if (BLAST_GlobalAllocator) {
         BLAST_MultiArena_destroy(&BLAST_GlobalAllocator);
     }
+    pthread_mutex_destroy(&BLAST_GlobalAllocator_lock);
 }
 
 void* BLAST_alloc(size_t size) {
+    pthread_mutex_lock(&BLAST_GlobalAllocator_lock);
     void *ptr = NULL;
     if (BLAST_GlobalAllocator) {
         BLAST_MultiArena_alloc(BLAST_GlobalAllocator, &ptr, size);
     }
+    pthread_mutex_unlock(&BLAST_GlobalAllocator_lock);
     return ptr;
 }
 
 BLAST_Error BLAST_free(void* ptr) {
-    return BLAST_MultiArena_free(BLAST_GlobalAllocator, &ptr);
+    pthread_mutex_lock(&BLAST_GlobalAllocator_lock);
+    BLAST_Error e = BLAST_MultiArena_free(BLAST_GlobalAllocator, &ptr);
+    pthread_mutex_unlock(&BLAST_GlobalAllocator_lock);
+    return e;
 }
 
 

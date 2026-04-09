@@ -3,6 +3,7 @@
 #include "test_fixed_arena.c"
 #include "test_flex_arena.c"
 #include "test_multi_arena.c"
+#include "test_global_alloc.c"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -64,6 +65,14 @@ int main(void) {
     RUN_TEST(test_MultiArena_availablemem_after_alloc);
     RUN_TEST(test_MultiArena_availablemem_after_free);
     RUN_TEST(test_MultiArena_availablemem_two_slots);
+
+    // global allocator
+    RUN_TEST(test_alloc_returns_non_null);
+    RUN_TEST(test_alloc_is_writable);
+    RUN_TEST(test_alloc_multiple_no_alias);
+    RUN_TEST(test_free_returns_no_error);
+    RUN_TEST(test_alloc_free_realloc);
+    RUN_TEST(test_alloc_different_sizes);
 
     return UNITY_END();
 }
