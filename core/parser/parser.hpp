@@ -1,7 +1,7 @@
 #pragma once
 
-namespace blast::parser {
+namespace blast::core::parser {
 
 void parse();
 
-} // namespace blast::parser
+} // namespace blast::core::parser
