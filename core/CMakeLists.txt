@@ -1,5 +1,7 @@
 add_library(core SHARED
     Exception.hpp Exception.cpp
+    State.hpp State.cpp
+    Automata.hpp Automata.cpp
 )
 
 set_target_properties(core PROPERTIES
@@ -16,7 +18,7 @@ install(
     TARGETS core
     EXPORT blast::core
     LIBRARY DESTINATION ${blast_install_libdir}
-    RUNTIME DESTINATION ${blast_install_bindir}
+    RUNTIME DESTINATION ${blast_install_libdir}
     PUBLIC_HEADER DESTINATION ${blast_install_includedir}
 )
 

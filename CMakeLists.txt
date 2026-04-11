@@ -28,3 +28,4 @@ get_filename_component(blast_install_includedir ${blast_install_dir}/include ABS
 get_filename_component(blast_install_docdir ${blast_install_dir}/doc ABSOLUTE)
 
 add_subdirectory(core)
+add_subdirectory(blastexe)
