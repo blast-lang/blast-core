@@ -1,7 +1,6 @@
 add_library(core SHARED
     Exception.hpp Exception.cpp
-    State.hpp State.cpp
-    Automata.hpp Automata.cpp
+    Automata.hpp
 )
 
 set_target_properties(core PROPERTIES

@@ -17,6 +17,7 @@ target_include_directories(blast PRIVATE
 )
 
 target_link_libraries(blast PRIVATE core CLI11)
+target_compile_options(blast PRIVATE -Wno-deprecated-declarations)
 
 install(
     TARGETS blast
