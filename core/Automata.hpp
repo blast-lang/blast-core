@@ -23,7 +23,7 @@ public:
     virtual bool accepts() const = 0;
 };
 
-//  ε-edge
+template<Hashable T> class Automata;
 
 // Non-Deterministic Finite State Automata (NFA)
 // Used as a construction intermediate only — convert to DFA via to_dfa()
@@ -33,7 +33,7 @@ public:
     NFA(
         std::set<StateInd> initials, std::set<StateInd> acceptings,
         StateInd sink,
-        std::vector<std::unordered_map<T, StateInd>> transitions = {},
+        std::vector<std::unordered_map<T, std::set<StateInd>>> transitions = {},
         std::vector<std::set<StateInd>> epsilon = {}
     ): m_initials(std::move(initials)),
         m_acceptings(std::move(acceptings)), m_sink(sink),
@@ -60,30 +60,136 @@ public:
         m_initials({0}),
         m_acceptings({1}), m_sink(2),
         m_transitions({
-            {{s, 1}},  // q0 --s--> q1 (accept)
-            {},        // q1 accept
-            {}         // q2 sink
+            {{s, {1}}},  // q0 --s--> {q1} (accept)
+            {},           // q1 accept
+            {}            // q2 sink
         }),
         m_epsilon(3)   // one empty ε-set per state
     {}
 
-    // Build a chain q0 --s[0]--> q1 ... qn (accept), qn+1 (sink)
-    template<std::ranges::input_range Range>
-        requires std::same_as<std::ranges::range_value_t<Range>, T>
-    NFA(const Range& range) {
-        StateInd state = 0;
-        for (const T& s : range) {
-            this->m_transitions.push_back({{s, state + 1}});
-            this->m_epsilon.push_back({});
-            ++state;
+    // Lift a DFA into an NFA: copies transitions verbatim, epsilon stays empty
+    explicit NFA(const Automata<T>& dfa);
+    explicit NFA(Automata<T>&& dfa);
+
+    size_t nbstates() const {
+        return this->m_transitions.size();
+    }
+
+    // Union operator: accepts if either automaton accepts
+    friend NFA operator||(const NFA& nfa1, const NFA& nfa2) {
+        // Given NFA₁ = (Q₁, δ₁, I₁, F₁) and NFA₂ = (Q₂, δ₂, I₂, F₂), build NFA₃
+        const size_t nfa3_nbstates = nfa1.nbstates() * nfa2.nbstates();
+        // Map the state pair/superposition: (i, j) will be stored at nfa3_transitions[i * nfa2.nbstates() + j] as a row-major layout
+        // So (0, 0) → 0, (0, 1) → 1, ..., (1, 0) → |Q₂|, (1, 1) → |Q₂| + 1
+        std::vector<std::unordered_map<T, std::set<StateInd>>> nfa3_transitions(nfa3_nbstates);
+        const auto nf3_ind = [&](StateInd i, StateInd j) { return i * nfa2.nbstates() + j; };
+        // Merged sink: both machines are in their respective sinks simultaneously
+        const StateInd nfa3_sink = nf3_ind(nfa1.m_sink, nfa2.m_sink);
+
+        // nfa3 is in itial state if either of its superposed states of nfa1 or nfa2 are in their initial states
+        std::set<StateInd> nfa3_initials, nfa3_acceptings;
+        for (const StateInd& i: nfa1.m_initials) {
+            for (const StateInd& j: nfa2.m_initials) {
+                nfa3_initials.insert(nf3_ind(i, j));
+            }
         }
-        this->m_transitions.push_back({});  // qn accept
-        this->m_epsilon.push_back({});
-        this->m_transitions.push_back({});  // qn+1 sink
-        this->m_epsilon.push_back({});
-        this->m_initials   = {0};
-        this->m_acceptings = {state};
-        this->m_sink       = state + 1;
+
+        std::set<T> symbols;
+        // epsilon transitions of (i,j): remap each component's epsilon-targets to product indices
+        std::vector<std::set<StateInd>> nfa3_epsilon(nfa3_nbstates);
+        for (StateInd i = 0; i < nfa1.nbstates(); ++i) {
+            auto const& nfa1_transitions = nfa1.m_transitions[i];
+            for (StateInd j = 0; j < nfa2.nbstates(); ++j) {
+                auto const& nfa2_transitions = nfa2.m_transitions[j];
+
+                // If either state is accepting, then the superposed state also is
+                if (nfa1.m_acceptings.contains(i) || nfa2.m_acceptings.contains(j)) {
+                    nfa3_acceptings.insert(nf3_ind(i, j));
+                }
+
+                for (const StateInd i_eps : nfa1.m_epsilon[i]) {
+                    nfa3_epsilon[nf3_ind(i, j)].insert(nf3_ind(i_eps, j));
+                }
+                for (const StateInd j_eps : nfa2.m_epsilon[j]) {
+                    nfa3_epsilon[nf3_ind(i, j)].insert(nf3_ind(i, j_eps));
+                }
+                // For state (i,j) lets find it possible transitions
+                // Lets find all symbols that allow transitionning out of states i AND j
+                symbols.clear();
+                for (auto const& [symbl, i_next]: nfa1_transitions) {
+                    symbols.insert(symbl);
+                }
+                for (auto const& [symbl, j_next]: nfa2_transitions) {
+                    symbols.insert(symbl);
+                }
+                // Now, lets find new transition for the symbols in DF3
+                for (auto const& symbl: symbols) {
+                    auto it1 = nfa1_transitions.find(symbl);
+                    auto it2 = nfa2_transitions.find(symbl);
+                    const std::set<StateInd> i_nexts = (it1 != nfa1_transitions.end()) ? it1->second : std::set<StateInd>{nfa1.m_sink};
+                    const std::set<StateInd> j_nexts = (it2 != nfa2_transitions.end()) ? it2->second : std::set<StateInd>{nfa2.m_sink};
+                    // Cartesian product: all (i', j') pairs reachable from (i, j) on symbl
+                    for (const StateInd i_next : i_nexts) {
+                        for (const StateInd j_next : j_nexts) {
+                            // Only truly sinks when both sides have hit their sinks
+                            const StateInd next = (i_next == nfa1.m_sink && j_next == nfa2.m_sink)
+                                ? nfa3_sink
+                                : nf3_ind(i_next, j_next);
+                            nfa3_transitions[nf3_ind(i, j)][symbl].insert(next);
+                        }
+                    }
+                }
+            }
+        }
+        return NFA(std::move(nfa3_initials), std::move(nfa3_acceptings), nfa3_sink, std::move(nfa3_transitions), std::move(nfa3_epsilon));
+    }
+
+    // https://www.geeksforgeeks.org/theory-of-computation/conversion-from-nfa-to-dfa/
+    Automata<T> deterministic() const {
+        // Given a state Q of an NFA, and a symbol `q`
+        // Returns the set of all states {Q'} reachable from Q with either `q` or a epsilon-transition
+        // This represent the superposed state of Q in the resulting DFA
+         auto next_superposition_single = [&](const StateInd& q, const T& s) {
+            std::set<StateInd> sup;
+            // Add all epsilon transition targets coming out of `q`
+            sup.insert(this->m_epsilon[q].begin(), this->m_epsilon[q].end());
+            // Add all standarts transition targets coming out of `q`
+            if (auto it = m_transitions[q].find(s); it != m_transitions[q].end()){
+                sup.insert(it->second.begin(), it->second.end());
+            }
+
+            return sup;
+        }
+
+        // Given a state `q`, return the epsilon closure of `q`
+        // Meaning the set of ALL states reachable from `q` by following ONLY epsilon-transitions
+        // For example: q --ε--> p --ε--> r := {p,r}
+        auto simple_epsilon_closure = [&](const StateInd& q) {
+            std::set<StateInd> closure = this->m_epsilon[q];
+            std::vector<StateInd> worklist(closure.begin(), closure.end());
+            while (!worklist.empty()) {
+                StateInd s = worklist.back(); worklist.pop_back();
+                for (StateInd eps : m_epsilon[s]) {
+                    if (closure.insert(eps).second) {
+                        worklist.push_back(eps);
+                    }
+                }
+            }
+            return closure;
+        }
+
+        // Given a superposed state 'qs', give its epsilon-closure
+        // Includes the input states themselves (trivially reachable)
+        auto epsilon_closure = [&](const std::set<StateInd>& qs) {
+            std::set<StateInd> closure = qs;
+            for (const StateInd q : closure) {
+                closure.merge(std::move(simple_epsilon_closure(q)));
+            }
+            return closure;
+        }
+
+        // Initial state of the DFA -> Superposition of the epsilon_closure of the NFA's initial states
+        auto initial = epsilon_closure(this->m_initials);
     }
 
 protected:
@@ -94,8 +200,8 @@ protected:
     // Index of the unique sink/trash state
     StateInd m_sink;
     // Transition table for each state: |m_transitions| = |m_states|
-    std::vector<std::unordered_map<T, StateInd>> m_transitions;
-    // m_epsilon[i] = ε-reachable states from i
+    std::vector<std::unordered_map<T, std::set<StateInd>>> m_transitions;
+    // m_epsilon[i] = epsilon-reachable states from i
     std::vector<std::set<StateInd>> m_epsilon;
 };
 
@@ -187,139 +293,15 @@ public:
     // https://www.geeksforgeeks.org/theory-of-computation/union-process-in-dfa/
     // https://www.geeksforgeeks.org/theory-of-computation/operations-on-dfa/
     friend Automata operator||(const Automata& dfa1, const Automata& dfa2) {
-        // Let DFA₁ = (Q₁, δ₁, q₀₁, F₁) and DFA₂ = (Q₂, δ₂, q₀₂, F₂)
-        // Then for DFA3
-        // States: Q₁ × Q₂
-        // Initial state: (q₀₁, q₀₂)
-        // Transitions: δ((p, q), a) = (δ₁(p, a), δ₂(q, a))
-        // Accepting states: {(p, q) | p ∈ F₁ or q ∈ F₂}
-        const size_t dfa3_nbstates = dfa1.nbstates() * dfa2.nbstates();
-        const StateInd dfa3_initial = 0;
-
-        // dfa3_transitions[0] will be the initial state of DFA3, representing the pair (q₀₁, q₀₂)
-        // More generally, the state pair (i, j) will be stored at dfa3_transitions[i * dfa2.nbstates() + j] as a row-major layout
-        // So (0, 0) → 0, (0, 1) → 1, ..., (1, 0) → |Q₂|, (1, 1) → |Q₂| + 1
-        std::vector<std::unordered_map<T, StateInd>> dfa3_transitions(dfa3_nbstates);
-        const auto df3_ind = [&](StateInd i, StateInd j) { return i * dfa2.nbstates() + j; };
-        // Merged sink: both machines are in their respective sinks simultaneously
-        const StateInd dfa3_sink = df3_ind(dfa1.m_sink, dfa2.m_sink);
-        // Accepting states: {(i, j) | i ∈ F₁ or j ∈ F₂}
-        std::set<StateInd> dfa3_accepting;
-
-        std::set<T> symbols;
-        for (StateInd i = 0; i < dfa1.nbstates(); ++i) {
-            auto const& dfa1_transitions = dfa1.m_transitions[i];
-            for (StateInd j = 0; j < dfa2.nbstates(); ++j) {
-                auto const& dfa2_transitions = dfa2.m_transitions[j];
-
-                // If either state is accepting, then the superposed state also is
-                if (dfa1.m_accepting.contains(i) || dfa2.m_accepting.contains(j)) {
-                    dfa3_accepting.insert(df3_ind(i, j));
-                }
-
-                // For state (i,j) lets find it possible transitions
-                // Lets find all symbols that allow transitionning out of states i AND j
-                symbols.clear();
-                for (auto const& [symbl, i_next]: dfa1_transitions) {
-                    symbols.insert(symbl);
-                }
-                for (auto const& [symbl, j_next]: dfa2_transitions) {
-                    symbols.insert(symbl);
-                }
-                // Now, lets find new transition for the symbols in DF3
-                for (auto const& symbl: symbols) {
-                    auto it1 = dfa1_transitions.find(symbl);
-                    auto it2 = dfa2_transitions.find(symbl);
-                    const StateInd p_next = (it1 != dfa1_transitions.end()) ? it1->second : dfa1.m_sink;
-                    const StateInd q_next = (it2 != dfa2_transitions.end()) ? it2->second : dfa2.m_sink;
-                    // Only truly sinks when both sides have hit their sinks
-                    const StateInd next = (p_next == dfa1.m_sink && q_next == dfa2.m_sink)
-                        ? dfa3_sink
-                        : df3_ind(p_next, q_next);
-                    dfa3_transitions[df3_ind(i, j)][symbl] = next;
-                }
-            }
-        }
-
-        // TODO: Minimize automata
-        return Automata(dfa3_initial, std::move(dfa3_accepting), dfa3_sink, std::move(dfa3_transitions));
+        return dfa1;
     }
 
     // Concatenation operator (dfa1 + dfa2 != dfa2 + dfa1)
     friend Automata operator+(const Automata& dfa1, const Automata& dfa2) {
-        // All accepting states of DFA1 needs to be merged with the starting state of DFA2
-        // This removes the needs for: the starting state of DFA2, and we also merge both sinks into one
-        const size_t dfa3_nbstates = dfa1.nbstates() + dfa2.nbstates() - 2;
-        std::vector<std::unordered_map<T, StateInd>> dfa3_transitions(dfa3_nbstates);
-        const StateInd dfa3_initial = dfa1.m_initial;
-        const StateInd dfa3_sink = dfa1.m_sink;  // reuse dfa1's sink slot (already allocated, left empty)
-
-        // Copy dfa1's transitions into dfa3 (1:1 index mapping), remapping its sink to dfa3_sink
-        for (StateInd i = 0; i < dfa1.nbstates(); ++i) {
-            if (i == dfa1.m_sink) continue;
-            for (auto const& [symbl, target] : dfa1.m_transitions[i])
-                dfa3_transitions[i][symbl] = (target == dfa1.m_sink) ? dfa3_sink : target;
-        }
-
-        const auto dfa2_offset = [&](StateInd j) -> StateInd {
-            return dfa1.nbstates() + j
-                 - (dfa2.m_initial < j ? 1 : 0)
-                 - (dfa2.m_sink    < j ? 1 : 0);
-        };
-
-        // Lets get the initial transition of DFA2
-        auto const& dfa2_initial_transitions = dfa2.m_transitions[dfa2.m_initial];
-
-        // Let's plug the accepting states of dfa1 (also stored in dfa3) into DFA2 starting targets
-        for (auto const& dfa1_accept: dfa1.m_accepting) {
-            // Tricky part, if `dfa1_accept` as an outgoing transition with symbol `a`
-            // And dfa2_initial_transitions also have symbol `a`, we need to merge the destination states of dfa2 into the accepting states of dfa1
-            /*
-            DFA1:  q₀₁ --a--> ... --z--> f₁ (accepting)
-                                            │
-                                    merge q₀₂ here
-                                            │
-            DFA2:              q₀₂ --x--> q' --y--> f₂ (accepting)
-
-            DFA3:  q₀₁ --a--> ... --z--> f₁ --x--> q' --y--> f₂ (accepting)
-            */
-            for (auto const& [symbl, target] : dfa2_initial_transitions) {
-                // We will not keep `dfa2.m_sink`
-                const StateInd next = (target == dfa2.m_sink) ? dfa3_sink : dfa2_offset(target);  
-                auto it1 = dfa1.m_transitions[dfa1_accept].find(symbl);
-                // Can dfa1 also transition with `symbl` from this accepting state ?
-                if (it1 != dfa1.m_transitions[dfa1_accept].end()) {
-                    // Conflict: dfa1 already has a transition on `symbl` from this accepting state,
-                    // AND dfa2's initial state also transitions on `symbl`.
-                    // A pure DFA cannot represent both choices simultaneously — the correct general
-                    // solution requires subset construction to create a merged state {it1->second, next}.
-                    StateInd new_state = dfa3_transitions.size();
-
-                    // TODO: implement subset construction for the conflicting case
-                } else {
-                    // Simple case: add a new transition dfa1_accept --symbl--> next
-                    dfa3_transitions[dfa1_accept][symbl] = next;
-                }
-            }
-        }
-
-        // Copy dfa2's remaining states (excluding initial and sink) into dfa3 with offset
-        for (StateInd j = 0; j < dfa2.nbstates(); ++j) {
-            if (j == dfa2.m_initial || j == dfa2.m_sink) continue;
-            for (auto const& [symbl, target] : dfa2.m_transitions[j]) {
-                dfa3_transitions[dfa2_offset(j)][symbl] = (target == dfa2.m_sink) ? dfa3_sink : dfa2_offset(target);
-            }
-        }
-
-        // DFA3 accepting states are dfa2's accepting states remapped through dfa2_offset
-        std::set<StateInd> dfa3_accepting;
-        for (auto const& dfa2_accept: dfa2.m_accepting) {
-            dfa3_accepting.insert(dfa2_offset(dfa2_accept));
-        }
-
-        // TODO: Minimize automata
-        return Automata(dfa3_initial, std::move(dfa3_accepting), dfa3_sink, std::move(dfa3_transitions));
+       return dfa1;
     }
+
+    friend class NFA<T>;
 
 protected:
     // Current active state
@@ -333,6 +315,38 @@ protected:
     // Transition table for each state: |m_transitions| = |m_states|
     std::vector<std::unordered_map<T, StateInd>> m_transitions;
 };
+
+template<Hashable T>
+NFA<T>::NFA(const Automata<T>& dfa)
+    : m_initials({dfa.m_initial}),
+      m_acceptings(dfa.m_accepting),
+      m_sink(dfa.m_sink),
+      m_epsilon(dfa.m_transitions.size())
+{
+    m_transitions.reserve(dfa.m_transitions.size());
+    for (const auto& row : dfa.m_transitions) {
+        std::unordered_map<T, std::set<StateInd>> nfa_row;
+        for (const auto& [sym, target] : row)
+            nfa_row[sym] = {target};
+        m_transitions.push_back(std::move(nfa_row));
+    }
+}
+
+template<Hashable T>
+NFA<T>::NFA(Automata<T>&& dfa)
+    : m_initials({dfa.m_initial}),
+      m_acceptings(std::move(dfa.m_accepting)),
+      m_sink(dfa.m_sink),
+      m_epsilon(dfa.m_transitions.size())
+{
+    m_transitions.reserve(dfa.m_transitions.size());
+    for (auto& row : dfa.m_transitions) {
+        std::unordered_map<T, std::set<StateInd>> nfa_row;
+        for (auto& [sym, target] : row)
+            nfa_row[std::move(sym)] = {target};
+        m_transitions.push_back(std::move(nfa_row));
+    }
+}
 
 template<Hashable T>
 class StringAutomata : public Automata<T> {
