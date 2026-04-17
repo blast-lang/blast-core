@@ -1,7 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <core/Automata.hpp>
+#include <core/parser/Regex.hpp>
 
 using namespace blast::core;
+using namespace blast::core::parser;
 
 // DFA recognizing exactly U"abc":
 // q0 --a--> q1 --b--> q2 --c--> q3 (accept)
@@ -12,11 +13,11 @@ static StringAutomata<char32_t> make_abc_automata() {
         /*accepting=*/{3},
         /*sink=*/     4,
         /*transitions=*/{
-            {{U'a', 1}},  // q0
-            {{U'b', 2}},  // q1
-            {{U'c', 3}},  // q2
-            {},           // q3 (accepting)
-            {},           // q4 (sink)
+            {{SymblRange{U'a'}, 1}},  // q0
+            {{SymblRange{U'b'}, 2}},  // q1
+            {{SymblRange{U'c'}, 3}},  // q2
+            {},                        // q3 (accepting)
+            {},                        // q4 (sink)
         }
     );
 }
@@ -96,7 +97,7 @@ TEST_CASE("Range ctor: single-symbol rejects wrong symbol", "[automata][range_ct
 
 // Union (operator||) tests
 // Recognizes "abc" OR "xyz"
-static Automata<char32_t> make_abc_or_xyz() {
+static StringAutomata<char32_t> make_abc_or_xyz() {
     return StringAutomata<char32_t>(std::u32string(U"abc"))
         || StringAutomata<char32_t>(std::u32string(U"xyz"));
 }
@@ -175,7 +176,7 @@ TEST_CASE("Union: is commutative", "[automata][union]") {
 
 // Concatenation (operator+) tests
 // Recognizes "abc" followed by "xyz" → "abcxyz"
-static Automata<char32_t> make_abc_then_xyz() {
+static StringAutomata<char32_t> make_abc_then_xyz() {
     return StringAutomata<char32_t>(std::u32string(U"abc"))
          + StringAutomata<char32_t>(std::u32string(U"xyz"));
 }
@@ -237,4 +238,127 @@ TEST_CASE("Concat: single-symbol each side", "[automata][concat]") {
     dfa.reset();
     dfa.process(std::u32string(U"b"));
     REQUIRE_FALSE(dfa.accepts());
+}
+
+// Kleene+ (operator+): one or more occurrences
+TEST_CASE("Plus: accepts single occurrence", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Plus: accepts two occurrences", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"abab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Plus: accepts three occurrences", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"ababab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Plus: rejects empty input", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U""));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Plus: rejects partial occurrence", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"a"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Plus: rejects one-and-a-half occurrences", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"aba"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Plus: resets correctly", "[automata][plus]") {
+    auto dfa = +StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"abab"));
+    REQUIRE(dfa.accepts());
+    dfa.reset();
+    REQUIRE_FALSE(dfa.accepts());
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+}
+
+// Kleene* (operator*): zero or more occurrences
+TEST_CASE("Star: accepts empty input", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U""));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Star: accepts single occurrence", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Star: accepts two occurrences", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"abab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Star: rejects partial occurrence", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"a"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Star: rejects one-and-a-half occurrences", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"aba"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Star: resets correctly", "[automata][star]") {
+    auto dfa = *StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"abab"));
+    REQUIRE(dfa.accepts());
+    dfa.reset();
+    REQUIRE(dfa.accepts());  // initial state accepts (empty string)
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+}
+
+// Optional (operator~): zero or one occurrence
+TEST_CASE("Optional: accepts empty input", "[automata][optional]") {
+    auto dfa = ~StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U""));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Optional: accepts single occurrence", "[automata][optional]") {
+    auto dfa = ~StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+}
+
+TEST_CASE("Optional: rejects two occurrences", "[automata][optional]") {
+    auto dfa = ~StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"abab"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Optional: rejects partial occurrence", "[automata][optional]") {
+    auto dfa = ~StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"a"));
+    REQUIRE_FALSE(dfa.accepts());
+}
+
+TEST_CASE("Optional: resets correctly", "[automata][optional]") {
+    auto dfa = ~StringAutomata<char32_t>(std::u32string(U"ab"));
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
+    dfa.reset();
+    REQUIRE(dfa.accepts());  // initial state accepts (empty string)
+    dfa.process(std::u32string(U"ab"));
+    REQUIRE(dfa.accepts());
 }

@@ -14,8 +14,8 @@ template<typename T>
 concept Hashable = requires(T v) {
     { std::hash<T>{}(v) } -> std::convertible_to<std::size_t>;
 };
-
 using StateInd = size_t;
+
 class IAutomata {
 public:
     virtual ~IAutomata() = default;
@@ -23,6 +23,7 @@ public:
     virtual bool accepts() const = 0;
 };
 
+// Forward declaration
 template<Hashable T> class Automata;
 
 // Non-Deterministic Finite State Automata (NFA)
@@ -60,7 +61,7 @@ public:
         m_initials({0}),
         m_acceptings({1}), m_sink(2),
         m_transitions({
-            {{s, {1}}},  // q0 --s--> {q1} (accept)
+            {{s, {1}}},   // q0 --s--> {q1} (accept)
             {},           // q1 accept
             {}            // q2 sink
         }),
@@ -144,23 +145,86 @@ public:
         return NFA(std::move(nfa3_initials), std::move(nfa3_acceptings), nfa3_sink, std::move(nfa3_transitions), std::move(nfa3_epsilon));
     }
 
-    // https://www.geeksforgeeks.org/theory-of-computation/conversion-from-nfa-to-dfa/
-    Automata<T> deterministic() const {
-        // Given a state Q of an NFA, and a symbol `q`
-        // Returns the set of all states {Q'} reachable from Q with either `q` or a epsilon-transition
-        // This represent the superposed state of Q in the resulting DFA
-         auto next_superposition_single = [&](const StateInd& q, const T& s) {
-            std::set<StateInd> sup;
-            // Add all epsilon transition targets coming out of `q`
-            sup.insert(this->m_epsilon[q].begin(), this->m_epsilon[q].end());
-            // Add all standarts transition targets coming out of `q`
-            if (auto it = m_transitions[q].find(s); it != m_transitions[q].end()){
-                sup.insert(it->second.begin(), it->second.end());
-            }
+    // Concatenation operator (nfa1 + nfa2 != nfa2 + nfa1)
+    friend NFA operator+(const NFA& nfa1, const NFA& nfa2) {
+        const size_t n1 = nfa1.nbstates();
+        const size_t n2 = nfa2.nbstates();
+        // Reuse nfa1's sink as nfa3's sink; remap nfa2.m_sink to it
+        const StateInd nfa3_sink = nfa1.m_sink;
+        const auto nfa2_ind = [&](StateInd j) {
+            return (j == nfa2.m_sink) ? nfa3_sink : n1 + j;
+        };
 
-            return sup;
+        // Copy nfa1 transitions verbatim, then nfa2 with offset + sink remap
+        std::vector<std::unordered_map<T, std::set<StateInd>>> nfa3_transitions(n1 + n2);
+        for (StateInd i = 0; i < n1; ++i) {
+            nfa3_transitions[i] = nfa1.m_transitions[i];
+        }
+        for (StateInd j = 0; j < n2; ++j) {
+            for (auto const& [symbl, j_nexts] : nfa2.m_transitions[j]) {
+                for (StateInd j_next : j_nexts) {
+                    nfa3_transitions[nfa2_ind(j)][symbl].insert(nfa2_ind(j_next));
+                }
+            }
         }
 
+        // Copy epsilon transitions; plug nfa1 accepting states -> nfa2 initial states
+        std::vector<std::set<StateInd>> nfa3_epsilon(n1 + n2);
+        for (StateInd i = 0; i < n1; ++i) {
+            nfa3_epsilon[i] = nfa1.m_epsilon[i];
+        }
+        for (StateInd j = 0; j < n2; ++j) {
+            for (StateInd j_eps : nfa2.m_epsilon[j]) {
+                nfa3_epsilon[nfa2_ind(j)].insert(nfa2_ind(j_eps));
+            }
+        }
+        for (const StateInd f : nfa1.m_acceptings) {
+            for (const StateInd i : nfa2.m_initials) {
+                nfa3_epsilon[f].insert(nfa2_ind(i));
+            }
+        }
+
+        std::set<StateInd> nfa3_acceptings;
+        for (const StateInd f : nfa2.m_acceptings) {
+            nfa3_acceptings.insert(nfa2_ind(f));
+        }
+
+        return NFA(nfa1.m_initials, std::move(nfa3_acceptings), nfa3_sink, std::move(nfa3_transitions), std::move(nfa3_epsilon));
+    }
+
+    // Kleen + (1 or more occurences) operator
+    friend NFA operator+(const NFA& nfa) {
+        // All accepting now have epsilon-transitions to the starting states
+        NFA nfa2(nfa);
+        // Add all epsilon transitions
+        for(const StateInd& i: nfa2.m_acceptings) {
+            nfa2.m_epsilon[i].insert(nfa2.m_initials.begin(), nfa2.m_initials.end());
+        }
+        return nfa2;
+    }
+
+    // Kleen star (0 or more occurences) operator
+    friend NFA operator*(const NFA& nfa) {
+        // staring an NFA is easy: all accepting now have epsilon-transitions to the starting states
+        // Starting states are now also accepting
+        NFA nfa2 = +nfa;
+        nfa2.m_acceptings.insert(nfa2.m_initials.begin(), nfa2.m_initials.end());
+        return nfa2;
+    }
+
+    // Optionnal operator
+    // If nfa 'N' recognize the language 'L', then '~N' recognize {L || empty}
+    // [0,1] basically
+    friend NFA operator~(const NFA& nfa) {
+        // Starting states are now also accepting
+        NFA nfa2(nfa);
+        nfa2.m_acceptings.insert(nfa2.m_initials.begin(), nfa2.m_initials.end());
+        return nfa2;
+    }
+    
+
+    // https://www.geeksforgeeks.org/theory-of-computation/conversion-from-nfa-to-dfa/
+    Automata<T> deterministic() const {
         // Given a state `q`, return the epsilon closure of `q`
         // Meaning the set of ALL states reachable from `q` by following ONLY epsilon-transitions
         // For example: q --ε--> p --ε--> r := {p,r}
@@ -176,20 +240,90 @@ public:
                 }
             }
             return closure;
-        }
+        };
 
         // Given a superposed state 'qs', give its epsilon-closure
         // Includes the input states themselves (trivially reachable)
         auto epsilon_closure = [&](const std::set<StateInd>& qs) {
             std::set<StateInd> closure = qs;
-            for (const StateInd q : closure) {
-                closure.merge(std::move(simple_epsilon_closure(q)));
+            for (const StateInd& q : qs) {
+                auto sub = simple_epsilon_closure(q);
+                closure.insert(sub.begin(), sub.end());
             }
             return closure;
-        }
+        };
+
+        struct SetHash {
+            size_t operator()(const std::set<StateInd>& s) const {
+                size_t seed = s.size();
+                for (StateInd v : s)
+                    seed ^= std::hash<StateInd>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+                return seed;
+            }
+        };
 
         // Initial state of the DFA -> Superposition of the epsilon_closure of the NFA's initial states
-        auto initial = epsilon_closure(this->m_initials);
+        std::set<StateInd> initial = epsilon_closure(this->m_initials);
+        std::unordered_map<std::set<StateInd>, std::unordered_map<T, std::set<StateInd>>, SetHash> superposed_states_transitions;
+        std::vector<std::set<StateInd>> states_stack;
+        states_stack.push_back(initial);
+
+        std::unordered_map<T, std::set<StateInd>> buffer_transitions;
+        while (!states_stack.empty()) {
+            auto const qs = states_stack.back(); states_stack.pop_back();
+            // Did we already process this superposed state?
+            if (superposed_states_transitions.find(qs) != superposed_states_transitions.end()) {
+                continue;
+            }
+
+            // Collect raw NFA targets for each symbol across all states in qs
+            buffer_transitions.clear();
+            for (const StateInd& q : qs) {
+                for (auto const& [symbl, q_nexts] : this->m_transitions[q]) {
+                    buffer_transitions[symbl].insert(q_nexts.begin(), q_nexts.end());
+                }
+            }
+
+            // Apply epsilon closure to each raw target set → new DFA superposed state
+            auto& row = superposed_states_transitions[qs];
+            for (auto& [symbl, raw_nexts] : buffer_transitions) {
+                std::set<StateInd> next_qs = epsilon_closure(raw_nexts);
+                if (superposed_states_transitions.find(next_qs) == superposed_states_transitions.end()) {
+                    states_stack.push_back(next_qs);
+                }
+                row[symbl] = std::move(next_qs);
+            }
+        }
+
+        // Now, build the DFA from `superposed_states_transitions`
+        // Assign a contiguous index to each discovered superposed state; initial gets 0
+        std::unordered_map<std::set<StateInd>, StateInd, SetHash> state_index;
+        state_index.reserve(superposed_states_transitions.size() + 1);
+        state_index[initial] = 0;
+        StateInd idx = 1;
+        for (auto const& [qs, _] : superposed_states_transitions) {
+            if (state_index.find(qs) == state_index.end())
+                state_index[qs] = idx++;
+        }
+        const StateInd dfa_sink = idx;  // one extra dead state for missing transitions
+        std::vector<std::unordered_map<T, StateInd>> dfa_transitions(idx + 1);
+        std::set<StateInd> dfa_accepting;
+
+        for (auto const& [qs, sym_map] : superposed_states_transitions) {
+            const StateInd from = state_index[qs];
+            for (auto const& [symbl, next_qs] : sym_map) {
+                auto it = state_index.find(next_qs);
+                dfa_transitions[from][symbl] = (it != state_index.end()) ? it->second : dfa_sink;
+            }
+            for (const StateInd& q : qs) {
+                if (this->m_acceptings.contains(q)) {
+                    dfa_accepting.insert(from);
+                    break;
+                }
+            }
+        }
+
+        return Automata<T>(state_index[initial], std::move(dfa_accepting), dfa_sink, std::move(dfa_transitions));
     }
 
 protected:
@@ -243,6 +377,13 @@ public:
         })
     {}
 
+    // Empty automata
+    Automata():
+        m_current(0), m_initial(0),
+        m_accepting({}), m_sink(0),
+        m_transitions({})
+    {}
+
     // Build a chain q0 --s[0]--> q1 ... qn (accept), qn+1 (sink)
     template<std::ranges::input_range Range>
         requires std::same_as<std::ranges::range_value_t<Range>, T>
@@ -261,8 +402,21 @@ public:
     }
 
 
-    size_t nbstates() const {
-        return this->m_transitions.size();
+    size_t nbstates() const { return m_transitions.size(); }
+    const StateInd& current() const { return m_current; }
+    const StateInd& sink() const { return m_sink; }
+    // Given a state, return the outbound transitions
+    const std::unordered_map<T, StateInd>& out_transitions(const StateInd& q) const {
+        if (q >= this->m_transitions.size())
+            throw std::out_of_range("state index out of range");
+        return this->m_transitions[q];
+    }
+
+    // Force transition
+    void force_state(const StateInd& q) { 
+        if (q >= this->m_transitions.size())
+            throw std::out_of_range("state index out of range");
+        this->m_current = q;
     }
 
     // reset to initial state
@@ -285,24 +439,41 @@ public:
     template<std::ranges::input_range Range>
         requires std::same_as<std::ranges::range_value_t<Range>, T>
     void process(const Range& range) {
-        for (const T& s : range)
+        for (const T& s : range) {
             this->process(s);
+        }
     }
 
     // Union operator: accepts if either automaton accepts
     // https://www.geeksforgeeks.org/theory-of-computation/union-process-in-dfa/
     // https://www.geeksforgeeks.org/theory-of-computation/operations-on-dfa/
     friend Automata operator||(const Automata& dfa1, const Automata& dfa2) {
-        return dfa1;
+        return (NFA<T>(dfa1) || NFA<T>(dfa2)).deterministic();
     }
 
     // Concatenation operator (dfa1 + dfa2 != dfa2 + dfa1)
     friend Automata operator+(const Automata& dfa1, const Automata& dfa2) {
-       return dfa1;
+       return (NFA<T>(dfa1) + NFA<T>(dfa2)).deterministic();
+    }
+
+    // Kleen + (1 or more occurences) operator
+    friend Automata operator+(const Automata& dfa) {
+        return (+(NFA<T>(dfa))).deterministic();
+    }
+
+    // Kleen star (0 or more occurences) operator
+    friend Automata operator*(const Automata& dfa) {
+        return (*(NFA<T>(dfa))).deterministic();
+    }
+
+    // Optionnal operator
+    // If nfa 'N' recognize the language 'L', then '~N' recognize {L || empty}
+    // [0,1] basically
+    friend Automata operator~(const Automata& dfa) {
+        return (~(NFA<T>(dfa))).deterministic();
     }
 
     friend class NFA<T>;
-
 protected:
     // Current active state
     StateInd m_current;
@@ -347,11 +518,5 @@ NFA<T>::NFA(Automata<T>&& dfa)
         m_transitions.push_back(std::move(nfa_row));
     }
 }
-
-template<Hashable T>
-class StringAutomata : public Automata<T> {
-public:
-    using Automata<T>::Automata;
-};
 
 } // namespace blast::core
