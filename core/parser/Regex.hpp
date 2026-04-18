@@ -53,8 +53,8 @@ public:
 
     RangeAutomata(const blast::core::Automata<SymblRange<T>>& dfa): m_dfa(dfa) {}
     RangeAutomata(blast::core::Automata<SymblRange<T>>&& dfa) noexcept: m_dfa(std::move(dfa)) {}
+    RangeAutomata(const SymblRange<T>& s): m_dfa(s) {}
 
-    // Build a chain automata recognizing exactly the sequence of symbols in `range`
     template<std::ranges::input_range Range>
         requires std::same_as<std::ranges::range_value_t<Range>, T>
     explicit RangeAutomata(const Range& range) {
@@ -62,9 +62,8 @@ public:
         StateInd n = static_cast<StateInd>(syms.size());
         StateInd sink = n + 1;
         std::vector<std::unordered_map<SymblRange<T>, StateInd>> trans(n + 2);
-        for (StateInd i = 0; i < n; ++i) {
+        for (StateInd i = 0; i < n; ++i)
             trans[i][SymblRange<T>(syms[i])] = i + 1;
-        }
         this->m_dfa = blast::core::Automata<SymblRange<T>>(0, {n}, sink, std::move(trans));
     }
 
@@ -112,6 +111,8 @@ public:
     friend RangeAutomata operator~(const RangeAutomata& a) {
         return RangeAutomata(~a.m_dfa);
     }
+
+
 };
 
 template<typename T>
@@ -122,7 +123,33 @@ concept CharLike = std::same_as<T, char>     ||
                    std::same_as<T, char32_t>;
 
 template<CharLike T>
-using StringAutomata = RangeAutomata<T>;
+class StringAutomata: public RangeAutomata<T> {
+public:
+    using RangeAutomata<T>::RangeAutomata;
+    StringAutomata(RangeAutomata<T>&& r)       :RangeAutomata<T>(std::move(r)) {}
+    StringAutomata(const RangeAutomata<T>& r)  :RangeAutomata<T>(r) {}
+
+    static const StringAutomata letter;      // [a-z] | [A-Z] | '_'
+    static const StringAutomata digit;       // [0-9]
+    static const StringAutomata number;      // [0-9]+
+    static const StringAutomata identifier;  // [a-zA-Z_][a-zA-Z0-9_]*
+};
+
+template<CharLike T>
+inline const StringAutomata<T> StringAutomata<T>::letter =
+    StringAutomata<T>(SymblRange<T>((T)'a', (T)'z')) ||
+    StringAutomata<T>(SymblRange<T>((T)'A', (T)'Z')) ||
+    StringAutomata<T>(SymblRange<T>((T)'_', (T)'_'));
+
+template<CharLike T>
+inline const StringAutomata<T> StringAutomata<T>::digit = StringAutomata<T>(SymblRange<T>((T)'0', (T)'9'));
+
+template<CharLike T>
+inline const StringAutomata<T> StringAutomata<T>::number = +StringAutomata<T>::digit;
+
+template<CharLike T>
+inline const StringAutomata<T> StringAutomata<T>::identifier =
+    StringAutomata<T>::letter + *(StringAutomata<T>::letter || StringAutomata<T>::digit);
 
 
 // Parses a regex pattern and returns a DFA recognizing its language.

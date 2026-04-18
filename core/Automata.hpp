@@ -366,6 +366,9 @@ public:
         m_transitions(std::move(other.m_transitions))
     {}
 
+    Automata& operator=(const Automata&) = default;
+    Automata& operator=(Automata&&) noexcept = default;
+
     // Build the simple transition q0 --symbol--> q1 (accept)
     Automata(const T& s):
         m_current(0), m_initial(0),
