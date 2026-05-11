@@ -11,36 +11,39 @@ concept CharLike = std::same_as<T, char>     ||
                    std::same_as<T, char8_t>  ||
                    std::same_as<T, char16_t> ||
                    std::same_as<T, char32_t>;
+                  
+template<CharLike T>
+using StringAutomata = blast::core::RangeAutomata<T>;
 
 template<CharLike T>
-class StringAutomata: public blast::core::RangeAutomata<T> {
-    using RangeAutomata = blast::core::RangeAutomata<T>;
-public:
-    using RangeAutomata::RangeAutomata;
-    StringAutomata(RangeAutomata&& r)       : RangeAutomata(std::move(r)) {}
-    StringAutomata(const RangeAutomata& r)  : RangeAutomata(r) {}
-
-    static const StringAutomata letter;      // [a-z] | [A-Z] | '_'
-    static const StringAutomata digit;       // [0-9]
-    static const StringAutomata number;      // [0-9]+
-    static const StringAutomata identifier;  // [a-zA-Z_][a-zA-Z0-9_]*
-};
+// [a-z] | [A-Z]
+inline const StringAutomata<T> letter = StringAutomata<T>((T)'a', (T)'z') || StringAutomata<T>((T)'A', (T)'Z');
 
 template<CharLike T>
-inline const StringAutomata<T> StringAutomata<T>::letter =
-    StringAutomata<T>(blast::core::SymblRange<T>((T)'a', (T)'z')) ||
-    StringAutomata<T>(blast::core::SymblRange<T>((T)'A', (T)'Z')) ||
-    StringAutomata<T>(blast::core::SymblRange<T>((T)'_', (T)'_'));
+// [0-9]
+inline const StringAutomata<T> digit = StringAutomata<T>((T)'0', (T)'9');
 
 template<CharLike T>
-inline const StringAutomata<T> StringAutomata<T>::digit = StringAutomata<T>(blast::core::SymblRange<T>((T)'0', (T)'9'));
+inline const StringAutomata<T> alphanum = letter<T> || digit<T>;
 
 template<CharLike T>
-inline const StringAutomata<T> StringAutomata<T>::number = +StringAutomata<T>::digit;
+// [0-9]+
+inline const StringAutomata<T> positive_natural = +digit<T>;
 
 template<CharLike T>
-inline const StringAutomata<T> StringAutomata<T>::identifier =
-    StringAutomata<T>::letter + *(StringAutomata<T>::letter || StringAutomata<T>::digit);
+inline const StringAutomata<T> underscore = StringAutomata<T>((T)'_');
+
+template<CharLike T>
+// [a-zA-Z_][a-zA-Z0-9_]*
+inline const StringAutomata<T> identifier = (letter<T> || underscore<T>) + *(alphanum<T> || underscore<T>);
+
+
+/*
+template<CharLike T>
+class Tokenizer: {
+    
+}
+*/
 
 
 // Parses a regex pattern and returns a DFA recognizing its language.

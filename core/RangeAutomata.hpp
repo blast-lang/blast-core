@@ -49,6 +49,8 @@ public:
     RangeAutomata(const Automata<SymblRange<T>>& dfa): m_dfa(dfa) {}
     RangeAutomata(Automata<SymblRange<T>>&& dfa) noexcept: m_dfa(std::move(dfa)) {}
     RangeAutomata(const SymblRange<T>& s): m_dfa(s) {}
+    RangeAutomata(const T& a, const T& b): RangeAutomata(SymblRange<T>(a, b)) {}
+    RangeAutomata(const T& a): RangeAutomata(SymblRange<T>(a, a)) {}
 
     template<std::ranges::input_range Range>
         requires std::same_as<std::ranges::range_value_t<Range>, T>
