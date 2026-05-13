@@ -21,4 +21,13 @@ install(
     PUBLIC_HEADER DESTINATION ${blast_install_includedir}
 )
 
+add_subdirectory(lexer)
 add_subdirectory(parser)
+
+add_executable(blastc blastc.cpp)
+target_link_libraries(blastc PRIVATE core lexer parser)
+
+install(
+    TARGETS blastc
+    RUNTIME DESTINATION ${blast_install_bindir}
+)

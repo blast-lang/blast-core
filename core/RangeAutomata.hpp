@@ -66,6 +66,7 @@ public:
 
     void reset() override { this->m_dfa.reset(); }
     bool accepts() const override { return this->m_dfa.accepts(); }
+    bool stuck() const { return this->m_dfa.current() == this->m_dfa.sink(); }
 
     const Automata<SymblRange<T>>& automata() const { return this->m_dfa; }
 

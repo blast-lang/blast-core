@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <core/parser/Regex.hpp>
+#include <core/lexer/Lexer.hpp>
 
 using namespace blast::core;
-using namespace blast::core::parser;
+using namespace blast::core::lexer;
 
 // DFA recognizing exactly U"abc":
 // q0 --a--> q1 --b--> q2 --c--> q3 (accept)
