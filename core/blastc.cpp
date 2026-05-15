@@ -3,15 +3,18 @@
 #include <fstream>
 #include <string>
 
+using namespace blast::core::lexer;
 
-constexpr std::string to_string(blast::core::lexer::TokenKind k) noexcept {             
+constexpr std::string to_string(MetaLexer::TokenKind k) noexcept {             
     switch (k) {                                                         
-        case blast::core::lexer::TokenKind::NONE:       return "NONE";                       
-        case blast::core::lexer::TokenKind::RULE_NAME: return "RULE_NAME";                 
-        case blast::core::lexer::TokenKind::END_RULE:    return "END_RULE";                    
-        case blast::core::lexer::TokenKind::LEXEM:  return "LEXEM";                  
-        case blast::core::lexer::TokenKind::BIN_OP:   return "BIN_OP";         
-        case blast::core::lexer::TokenKind::UNA_OP:    return "UNA_OP";                       
+        case MetaLexer::TokenKind::NONE:       return "NONE";                       
+        case MetaLexer::TokenKind::IDENTIFIER: return "IDENTIFIER";                 
+        case MetaLexer::TokenKind::END_RULE:    return "END_RULE";                    
+        case MetaLexer::TokenKind::LEXEM:  return "LEXEM";                  
+        case MetaLexer::TokenKind::BIN_OP:   return "BIN_OP";         
+        case MetaLexer::TokenKind::UNA_OP:    return "UNA_OP";
+        case MetaLexer::TokenKind::CAPTURE:    return "CAPTURE";
+        case MetaLexer::TokenKind::RANGE:    return "RANGE";                     
     }                                                                    
     return "UNKNOWN";         
 }                                           

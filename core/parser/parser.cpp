@@ -1,5 +1,8 @@
+#include "Parser.hpp"
 namespace blast::core::parser {
 
-void parse() {}
+void process(const MetaParser::Token& token) {
+
+}
 
 } // namespace blast::core::parser
