@@ -45,6 +45,8 @@ public:
 
     RangeAutomata(const RangeAutomata&) = default;
     RangeAutomata(RangeAutomata&&) noexcept = default;
+    RangeAutomata& operator=(const RangeAutomata&) = default;
+    RangeAutomata& operator=(RangeAutomata&&) noexcept = default;
 
     RangeAutomata(const Automata<SymblRange<T>>& dfa): m_dfa(dfa) {}
     RangeAutomata(Automata<SymblRange<T>>&& dfa) noexcept: m_dfa(std::move(dfa)) {}
@@ -67,6 +69,7 @@ public:
     void reset() override { this->m_dfa.reset(); }
     bool accepts() const override { return this->m_dfa.accepts(); }
     bool stuck() const { return this->m_dfa.current() == this->m_dfa.sink(); }
+    size_t nbstates() const { return m_dfa.nbstates(); }
 
     const Automata<SymblRange<T>>& automata() const { return this->m_dfa; }
 

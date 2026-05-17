@@ -3,6 +3,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <tuple>
 #include <limits>
 
 namespace blast::core::lexer {
@@ -72,7 +73,6 @@ public:
 public:
 
     // Rules for differenciating tokens
-    
     inline static std::pair<SA*, TokenKind> rules[] = {
         {&MetaLexer::whitespace,    MetaLexer::TokenKind::NONE},
         {&MetaLexer::newline,       MetaLexer::TokenKind::NONE},
@@ -91,86 +91,44 @@ public:
     std::vector<MetaLexer::Token> process(std::string_view input) const;
 };
 
-
-/*
-enum class TokenKind {
-    NONE,
-    IDENDIFIER,
-    INT_LIT,
-    FLOAT_LIT,
-    BOOL_LIT,
-    STR_LIT,
-    IF_STMT,
-    ELSE_STMT,
-};
-
-
-
 class Tokenizer {
+public:
+    enum class TokenKind {
+        NONE,
+        IDENDIFIER,
+        INT_LIT,
+        FLOAT_LIT,
+        BOOL_LIT,
+        STR_LIT,
+        IF_STMT,
+        ELSE_STMT,
+        CONTINUE_STMT,
+    };
+
+    struct Token {
+        Tokenizer::TokenKind m_kind;
+        std::string m_value;
+    };
+
 public:
     using SA = StringAutomata<char>;
 
-    // Utils
-    inline static SA letter             = SA('a', 'z') || SA('A', 'Z');
-    inline static SA digit              = SA('0', '9');
-    inline static SA alphanum           = letter || digit;
-    inline static SA underscore         = SA('_');
-    // Literals
-    inline static SA integer_literal    = +digit;
-    inline static SA float_literal      = +digit + SA('.') + +digit;
-    inline static SA bool_literal       = SA(std::string_view{"true"}) || SA(std::string_view{"false"});
-    inline static SA non_quote          = SA((char)0, (char)('"'-1)) || SA((char)('"'+1), std::numeric_limits<char>::max());
-    inline static SA string_literal     = SA('"') + *non_quote + SA('"');
+public:
+    Tokenizer();
+    const std::vector<Tokenizer::Token>& tokens() const;
 
-    // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
-    inline static SA identifier         = (letter || underscore) + *(alphanum || underscore);
+    // Processing
+    void process(std::string_view input);
+    void print() const;
 
-    // characters ignored in the grammar
-    inline static SA newline            = SA('\n');
-    inline static SA whitespace         = SA(' ') || SA('\t');
-
-    // Starting point
-    inline static SA main               = *whitespace + identifier + *whitespace;
-
-
-    // Rules for differenciating tokens
-    inline static std::pair<SA*, TokenKind> rules[] = {
-        {&Tokenizer::whitespace, TokenKind::NONE},
-        {&Tokenizer::newline,    TokenKind::NONE},
-        {&Tokenizer::integer_literal, TokenKind::INT_LIT},
-        {&Tokenizer::float_literal, TokenKind::FLOAT_LIT},
-        {&Tokenizer::bool_literal, TokenKind::BOOL_LIT},
-        {&Tokenizer::string_literal, TokenKind::STR_LIT},
-        {&Tokenizer::identifier, TokenKind::IDENDIFIER}
-    };
-
-    std::vector<Token> process(std::string_view input) const;
+protected:
+    // Set of rules
+    std::vector<std::tuple<SA, size_t, Tokenizer::TokenKind>> m_rules;
+    // Output stack
+    std::vector<Tokenizer::Token> m_tokens;
 };
-*/
 
 
-// Parses a regex pattern and returns a DFA recognizing its language.
-//
-// Supported syntax:
-//   a       literal character
-//   ab      concatenation
-//   a|b     union
-//   a*      zero or more (Kleene star)
-//   a+      one or more (Kleene plus)
-//   a?      zero or one (optional)
-//   (...)   grouping
-//   \x      escaped metacharacter
-//
-// Grammar:
-//   regex      ::= union
-//   union      ::= concat ('|' concat)*
-//   concat     ::= term+
-//   term       ::= atom ('*' | '+' | '?')?
-//   atom       ::= '(' regex ')' | literal
-//   literal    ::= '\' char  |  any non-metachar
-//
-// Throws std::invalid_argument on syntax errors.
-//template<blast::core::Hashable T>
-//StringAutomata<T> parse_regex(std::basic_string_view<T> pattern);
+
 
 } // namespace blast::core::lexer
