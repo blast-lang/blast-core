@@ -94,15 +94,31 @@ public:
 class Tokenizer {
 public:
     enum class TokenKind {
+        // Utils
         NONE,
-        IDENDIFIER,
+        // Literals
         INT_LIT,
         FLOAT_LIT,
         BOOL_LIT,
         STR_LIT,
+        // Keywords
+        UNDERSCORE,
+        COMMA,
+        ENDEXPR,
+        OPEN_PAR,
+        CLOSE_PAR,
+        OPEN_BRAC,
+        CLOSE_BRAC,
+        OPEN_CURLBRAC,
+        CLOSE_CURLBRAC,
         IF_STMT,
         ELSE_STMT,
         CONTINUE_STMT,
+        // Operators
+        BIN_OP,
+        UNA_OP,
+        // Identifier
+        IDENDIFIER,
     };
 
     struct Token {

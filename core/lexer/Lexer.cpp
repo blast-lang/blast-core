@@ -13,7 +13,6 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA letter             = SA('a', 'z') || SA('A', 'Z');
     Tokenizer::SA digit              = SA('0', '9');
     Tokenizer::SA alphanum           = letter || digit;
-    Tokenizer::SA underscore         = SA('_');
     // characters ignored in the grammar
     Tokenizer::SA newline            = SA('\n') || SA('\r');
     Tokenizer::SA whitespace         = SA(' ') || SA('\t');
@@ -24,21 +23,50 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA non_quote          = SA(std::numeric_limits<char>::min(), (char)('"'-1)) || SA((char)('"'+1), std::numeric_limits<char>::max());
     Tokenizer::SA string_literal     = SA('"') + *non_quote + SA('"');
     // Keywords
+    Tokenizer::SA underscore         = SA('_');
+    Tokenizer::SA comma              = SA(',');
+    Tokenizer::SA endexpr            = SA(';');
+    Tokenizer::SA open_par           = SA('(');
+    Tokenizer::SA close_par          = SA(')');
+    Tokenizer::SA open_brac          = SA('[');
+    Tokenizer::SA close_brac         = SA(']');
+    Tokenizer::SA open_curlbrac      = SA('{');
+    Tokenizer::SA close_curlbrac     = SA('}');
     Tokenizer::SA continue_stmt      = SA(std::string_view{"continue"});
     Tokenizer::SA if_stmt            = SA(std::string_view{"if"});
     Tokenizer::SA else_stmt          = SA(std::string_view{"else"});
+    // Operators
+    Tokenizer::SA op_add             = SA('+');
+    Tokenizer::SA op_mul             = SA('*');
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
     Tokenizer::SA identifier         = (letter || underscore) + *(alphanum || underscore);
 
     // Register rules (dfa -> priority -> output token)
     this->m_rules.push_back({whitespace,        1000,  Tokenizer::TokenKind::NONE});
     this->m_rules.push_back({newline,           1000,  Tokenizer::TokenKind::NONE});
+    // Literals
     this->m_rules.push_back({integer_literal,   0,      Tokenizer::TokenKind::INT_LIT});
+    this->m_rules.push_back({float_literal,     0,      Tokenizer::TokenKind::FLOAT_LIT});
     this->m_rules.push_back({bool_literal,      0,      Tokenizer::TokenKind::BOOL_LIT});
     this->m_rules.push_back({string_literal,    0,      Tokenizer::TokenKind::STR_LIT});
+    // Keywords
+    this->m_rules.push_back({underscore,        0,      Tokenizer::TokenKind::UNDERSCORE});
+    this->m_rules.push_back({comma,             0,      Tokenizer::TokenKind::COMMA});
+    this->m_rules.push_back({endexpr,           0,      Tokenizer::TokenKind::ENDEXPR});
+    this->m_rules.push_back({open_par,          0,      Tokenizer::TokenKind::OPEN_PAR});
+    this->m_rules.push_back({close_par,         0,      Tokenizer::TokenKind::CLOSE_PAR});
+    this->m_rules.push_back({open_brac,         0,      Tokenizer::TokenKind::OPEN_BRAC});
+    this->m_rules.push_back({close_brac,        0,      Tokenizer::TokenKind::CLOSE_BRAC});
+    this->m_rules.push_back({open_curlbrac,     0,      Tokenizer::TokenKind::OPEN_CURLBRAC});
+    this->m_rules.push_back({close_curlbrac,    0,      Tokenizer::TokenKind::CLOSE_CURLBRAC});
+    
     this->m_rules.push_back({continue_stmt,     0,      Tokenizer::TokenKind::CONTINUE_STMT});
     this->m_rules.push_back({if_stmt,           0,      Tokenizer::TokenKind::IF_STMT});
     this->m_rules.push_back({else_stmt,         0,      Tokenizer::TokenKind::ELSE_STMT});
+    // Operators
+    this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
+    // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
     this->m_rules.push_back({identifier,        1,      Tokenizer::TokenKind::IDENDIFIER});
 
     // Sort rules by priority
@@ -57,14 +85,26 @@ void Tokenizer::print() const {
 
     auto tts = [](Tokenizer::TokenKind tk) {
         switch (tk) {
-            case Tokenizer::TokenKind::NONE: return "NONE";
-            case Tokenizer::TokenKind::INT_LIT: return "INT_LITERAL";
-            case Tokenizer::TokenKind::BOOL_LIT: return "BOOL_LITERAL";
-            case Tokenizer::TokenKind::STR_LIT: return "STR_LITERAL";
-            case Tokenizer::TokenKind::IDENDIFIER: return "IDENTIFIER";
-            case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE";
-            case Tokenizer::TokenKind::IF_STMT: return "IF";
-            case Tokenizer::TokenKind::ELSE_STMT: return "ELSE";
+        case Tokenizer::TokenKind::NONE: return "NONE";
+        case Tokenizer::TokenKind::INT_LIT: return "INT_LIT";
+        case Tokenizer::TokenKind::FLOAT_LIT: return "FLOAT_LIT";
+        case Tokenizer::TokenKind::BOOL_LIT: return "BOOL_LIT";
+        case Tokenizer::TokenKind::STR_LIT: return "STR_LIT";
+        case Tokenizer::TokenKind::UNDERSCORE: return "UNDERSCORE";
+        case Tokenizer::TokenKind::COMMA: return "COMMA";
+        case Tokenizer::TokenKind::ENDEXPR: return "ENDEXPR";
+        case Tokenizer::TokenKind::OPEN_PAR: return "OPEN_PAR";
+        case Tokenizer::TokenKind::CLOSE_PAR: return "CLOSE_PAR";
+        case Tokenizer::TokenKind::OPEN_BRAC: return "OPEN_BRAC";
+        case Tokenizer::TokenKind::CLOSE_BRAC: return "CLOSE_BRAC";
+        case Tokenizer::TokenKind::OPEN_CURLBRAC: return "OPEN_CURLBRAC";
+        case Tokenizer::TokenKind::CLOSE_CURLBRAC: return "CLOSE_CURLBRAC";
+        case Tokenizer::TokenKind::IF_STMT: return "IF_STMT";
+        case Tokenizer::TokenKind::ELSE_STMT: return "ELSE_STMT";
+        case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE_STMT";
+        case Tokenizer::TokenKind::BIN_OP: return "BIN_OP";
+        case Tokenizer::TokenKind::UNA_OP: return "UNA_OP";
+        case Tokenizer::TokenKind::IDENDIFIER: return "IDENDIFIER";
             default: return "UNKNOWN";
         }
     };
@@ -114,11 +154,9 @@ void Tokenizer::process(std::string_view input) {
                 }
             }
         }
-
         if (best_end == pos) {
             throw std::runtime_error(std::string("Unknown input '") + std::string(1, input[pos]) + "' (char=" + std::to_string((int)(unsigned char)input[pos]) + ")");
         }
-
         if (std::get<2>(this->m_rules[best_rule]) != Tokenizer::TokenKind::NONE) {
             this->m_tokens.push_back({std::get<2>(this->m_rules[best_rule]), std::string(input.substr(pos, best_end - pos))});
         }
