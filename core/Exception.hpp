@@ -1,6 +1,7 @@
 #pragma once
 #include <stdexcept>
 #include <string>
+#include <cstddef>
 
 namespace blast::core {
 
@@ -12,6 +13,17 @@ public:
 
     Exception(const Exception&) = default;
     Exception(Exception&&) = default;
+};
+
+class LexError : public Exception {
+public:
+    explicit LexError(const std::string& message, std::size_t position = 0):
+        Exception(message), m_position(position) {}
+
+    std::size_t position() const { return m_position; }
+
+private:
+    std::size_t m_position;
 };
 
 } // namespace blast::core

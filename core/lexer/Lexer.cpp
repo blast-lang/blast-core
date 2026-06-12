@@ -1,7 +1,7 @@
 #include "Lexer.hpp"
+#include <core/Exception.hpp>
 #include <cctype>
 #include <cstdio>
-#include <stdexcept>
 #include <string>
 #include <algorithm>
 #include <iostream>
@@ -155,7 +155,7 @@ void Tokenizer::process(std::string_view input) {
             }
         }
         if (best_end == pos) {
-            throw std::runtime_error(std::string("Unknown input '") + std::string(1, input[pos]) + "' (char=" + std::to_string((int)(unsigned char)input[pos]) + ")");
+            throw blast::core::LexError(std::string("Unknown input '") + std::string(1, input[pos]) + "' (char=" + std::to_string((int)(unsigned char)input[pos]) + ")", pos);
         }
         if (std::get<2>(this->m_rules[best_rule]) != Tokenizer::TokenKind::NONE) {
             this->m_tokens.push_back({std::get<2>(this->m_rules[best_rule]), std::string(input.substr(pos, best_end - pos))});
