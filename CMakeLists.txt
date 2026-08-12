@@ -5,21 +5,12 @@ set(BLAST_VERSION "0.0.1" CACHE STRING "Blast version")
 # Append 'blast' to every lib names
 set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "libBLAST")
 
-# Where to find LLVM
-set(BLAST_LLVM_ROOT "" CACHE STRING "LLVM install location")
 # CPP standard
 set(CMAKE_CXX_STANDARD 23)
-# Linker (only set if BLAST_LLVM_ROOT is provided)
-if(BLAST_LLVM_ROOT)
-  set(CMAKE_LINKER "${BLAST_LLVM_ROOT}/bin/lld")
-endif()
 
+# BLAST discriminates AST/IR nodes with its own kind-enum (isa/dyn_cast style),
+# so C++ language-level RTTI (dynamic_cast/typeid) is not needed.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -unwindlib=libunwind -rtlib=compiler-rt")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -unwindlib=libunwind -rtlib=compiler-rt")
-endif()
 
 project(
     blast

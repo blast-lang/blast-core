@@ -3,6 +3,7 @@ include(Catch)
 add_executable(blast_tests
     AutomataTest.cpp
     LexerTest.cpp
+    AstTest.cpp
 )
 
 # Automata is header-only template code — include path only, no DLL dependency
@@ -13,6 +14,7 @@ target_include_directories(blast_tests PRIVATE
 target_link_libraries(blast_tests PRIVATE
     Catch2::Catch2WithMain
     lexer
+    parser
     core
 )
 

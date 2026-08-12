@@ -38,6 +38,9 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     // Operators
     Tokenizer::SA op_add             = SA('+');
     Tokenizer::SA op_mul             = SA('*');
+    Tokenizer::SA op_assign          = SA('=');
+    // Type annotation: '::' (Julia-style, e.g. a::Int)
+    Tokenizer::SA colon_colon        = SA(':') + SA(':');
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
     Tokenizer::SA identifier         = (letter || underscore) + *(alphanum || underscore);
 
@@ -66,6 +69,8 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     // Operators
     this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_assign,         0,      Tokenizer::TokenKind::ASSIGN});
+    this->m_rules.push_back({colon_colon,       0,      Tokenizer::TokenKind::COLON_COLON});
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
     this->m_rules.push_back({identifier,        1,      Tokenizer::TokenKind::IDENDIFIER});
 
@@ -81,10 +86,8 @@ const std::vector<Tokenizer::Token>& Tokenizer::tokens() const {
     return this->m_tokens;
 }
 
-void Tokenizer::print() const {
-
-    auto tts = [](Tokenizer::TokenKind tk) {
-        switch (tk) {
+std::string_view Tokenizer::kind_name(Tokenizer::TokenKind kind) {
+    switch (kind) {
         case Tokenizer::TokenKind::NONE: return "NONE";
         case Tokenizer::TokenKind::INT_LIT: return "INT_LIT";
         case Tokenizer::TokenKind::FLOAT_LIT: return "FLOAT_LIT";
@@ -103,14 +106,19 @@ void Tokenizer::print() const {
         case Tokenizer::TokenKind::ELSE_STMT: return "ELSE_STMT";
         case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE_STMT";
         case Tokenizer::TokenKind::BIN_OP: return "BIN_OP";
+        case Tokenizer::TokenKind::ASSIGN: return "ASSIGN";
         case Tokenizer::TokenKind::UNA_OP: return "UNA_OP";
+        case Tokenizer::TokenKind::COLON_COLON: return "COLON_COLON";
         case Tokenizer::TokenKind::IDENDIFIER: return "IDENDIFIER";
-            default: return "UNKNOWN";
-        }
-    };
+        default: return "UNKNOWN";
+    }
+}
+
+void Tokenizer::print() const {
     for (const Tokenizer::Token& token: this->m_tokens) {
-        //std::cout << "[" << tts(token.m_kind) << "]" << "\t\t\t" << token.m_value << "\n";
-        std::printf("[%s]   \t%s\n", tts(token.m_kind), token.m_value.c_str());
+        std::printf("[%s]   \t%s\n",
+                    std::string(kind_name(token.m_kind)).c_str(),
+                    token.m_value.c_str());
     }
 }
 

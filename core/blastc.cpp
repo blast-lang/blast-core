@@ -1,4 +1,6 @@
 #include <core/lexer/Lexer.hpp>
+#include <core/parser/Parser.hpp>
+#include <core/Exception.hpp>
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -21,8 +23,22 @@ int main(int argc, char* argv[]) {
     std::string source(std::istreambuf_iterator<char>(file), {});
 
     blast::core::lexer::Tokenizer tokenizer;
-    tokenizer.process(source);
-    tokenizer.print();
+    blast::core::parser::SimpleParser parser(tokenizer);
+    try {
+        tokenizer.process(source);
+        tokenizer.print();
+
+        parser.buildAST();
+    } catch (const blast::core::LexError& e) {
+        std::fprintf(stderr, "blastc: lex error at %zu: %s\n", e.position(), e.what());
+        return 1;
+    } catch (const blast::core::ParseError& e) {
+        std::fprintf(stderr, "blastc: parse error at token %zu: %s\n", e.position(), e.what());
+        return 1;
+    }
+
+    std::puts("--- ast ---");
+    std::printf("%s", blast::core::parser::dump_tree(parser.root()).c_str());
 
     return 0;
 }

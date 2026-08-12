@@ -116,7 +116,9 @@ public:
         CONTINUE_STMT,
         // Operators
         BIN_OP,
+        ASSIGN,
         UNA_OP,
+        COLON_COLON,
         // Identifier
         IDENDIFIER,
     };
@@ -132,6 +134,9 @@ public:
 public:
     Tokenizer();
     const std::vector<Tokenizer::Token>& tokens() const;
+
+    // Human-readable name for a token kind (diagnostics, dumps).
+    static std::string_view kind_name(Tokenizer::TokenKind kind);
 
     // Processing
     void process(std::string_view input);

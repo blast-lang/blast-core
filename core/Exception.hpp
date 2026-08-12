@@ -26,4 +26,16 @@ private:
     std::size_t m_position;
 };
 
+class ParseError : public Exception {
+public:
+    // position is the index of the offending token in the token stream.
+    explicit ParseError(const std::string& message, std::size_t position = 0):
+        Exception(message), m_position(position) {}
+
+    std::size_t position() const { return m_position; }
+
+private:
+    std::size_t m_position;
+};
+
 } // namespace blast::core
