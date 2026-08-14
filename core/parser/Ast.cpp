@@ -38,7 +38,7 @@ public:
     }
     std::string visitIfStmt(const IfStmt& n) {
         std::string out = "(if " + visit(n.cond()) + " " + visit(n.then_branch());
-        if (n.else_branch() != nullptr) {
+        if (n.has_else()) {
             out += " else " + visit(n.else_branch());
         }
         return out + ")";
@@ -48,10 +48,10 @@ public:
     }
     std::string visitVarDecl(const VarDecl& n) {
         std::string out = "(var-decl " + n.name();
-        if (n.type() != nullptr) {
+        if (n.has_type()) {
             out += " :: " + visit(n.type());
         }
-        if (n.init() != nullptr) {
+        if (n.has_init()) {
             out += " = " + visit(n.init());
         }
         return out + ")";
@@ -135,17 +135,17 @@ public:
     }
     std::vector<Child> visitIfStmt(const IfStmt& n) {
         std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.then_branch()}};
-        if (n.else_branch() != nullptr) {
+        if (n.has_else()) {
             children.push_back({"else: ", n.else_branch()});
         }
         return children;
     }
     std::vector<Child> visitVarDecl(const VarDecl& n) {
         std::vector<Child> children;
-        if (n.type() != nullptr) {
+        if (n.has_type()) {
             children.push_back({"type: ", n.type()});
         }
-        if (n.init() != nullptr) {
+        if (n.has_init()) {
             children.push_back({"init: ", n.init()});
         }
         return children;

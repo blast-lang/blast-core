@@ -230,7 +230,10 @@ public:
             {}
     const Expr* cond() const { return m_cond.get(); }
     const Block* then_branch() const { return m_then.get(); }
-    const Stmt* else_branch() const { return m_else.get(); }
+
+    bool has_else() const { return m_else != nullptr; }
+    const Stmt* else_branch() const { return m_else.get(); }   // null unless has_else()
+
     static bool classof(const ASTNode* n) { return n->kind() == Kind::IfStmt; }
 
 private:
@@ -271,8 +274,13 @@ public:
         Decl(Kind::VarDecl), m_name(std::move(name)), m_type(std::move(type)), m_init(std::move(init)) {}
 
     const std::string& name() const override { return m_name; }
-    const Expr* type() const { return m_type.get(); }   // nullable
-    const Expr* init() const { return m_init.get(); }   // nullable
+
+    bool has_type() const { return m_type != nullptr; }
+    const Expr* type() const { return m_type.get(); }   // null unless has_type()
+
+    bool has_init() const { return m_init != nullptr; }
+    const Expr* init() const { return m_init.get(); }   // null unless has_init()
+
     static bool classof(const ASTNode* n) { return n->kind() == Kind::VarDecl; }
 
 private:
