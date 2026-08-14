@@ -38,4 +38,11 @@ private:
     std::size_t m_position;
 };
 
+// Raised while lowering the AST to machine code: unknown identifier,
+// unsupported node, unsupported type, ...
+class CodegenError : public Exception {
+public:
+    explicit CodegenError(const std::string& message): Exception(message) {}
+};
+
 } // namespace blast::core

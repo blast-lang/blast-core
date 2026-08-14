@@ -70,7 +70,7 @@ const To* dyn_cast(const From* node) {
 // ---------------------------------------------------------------------------
 // Expressions
 // ---------------------------------------------------------------------------
-class Expr : public ASTNode {
+class Expr: public ASTNode {
 public:
     using ASTNode::ASTNode;
     static bool classof(const ASTNode* n) {
@@ -78,7 +78,7 @@ public:
     }
 };
 
-class IntLiteral : public Expr {
+class IntLiteral: public Expr {
 public:
     explicit IntLiteral(std::int64_t value): Expr(Kind::IntLiteral), m_value(value) {}
     std::int64_t value() const { return m_value; }
@@ -88,7 +88,7 @@ private:
     std::int64_t m_value;
 };
 
-class FloatLiteral : public Expr {
+class FloatLiteral: public Expr {
 public:
     explicit FloatLiteral(double value): Expr(Kind::FloatLiteral), m_value(value) {}
     double value() const { return m_value; }
@@ -98,7 +98,7 @@ private:
     double m_value;
 };
 
-class BoolLiteral : public Expr {
+class BoolLiteral: public Expr {
 public:
     explicit BoolLiteral(bool value): Expr(Kind::BoolLiteral), m_value(value) {}
     bool value() const { return m_value; }
@@ -108,7 +108,7 @@ private:
     bool m_value;
 };
 
-class StringLiteral : public Expr {
+class StringLiteral: public Expr {
 public:
     explicit StringLiteral(std::string value): Expr(Kind::StringLiteral), m_value(std::move(value)) {}
     const std::string& value() const { return m_value; }
@@ -118,7 +118,7 @@ private:
     std::string m_value;
 };
 
-class Identifier : public Expr {
+class Identifier: public Expr {
 public:
     explicit Identifier(std::string name): Expr(Kind::Identifier), m_name(std::move(name)) {}
     const std::string& name() const { return m_name; }
@@ -128,7 +128,7 @@ private:
     std::string m_name;
 };
 
-class UnaryExpr : public Expr {
+class UnaryExpr: public Expr {
 public:
     UnaryExpr(std::string op, std::unique_ptr<Expr> operand): 
         Expr(Kind::UnaryExpr),
@@ -144,7 +144,7 @@ private:
     std::unique_ptr<Expr> m_operand;
 };
 
-class BinaryExpr : public Expr {
+class BinaryExpr: public Expr {
 public:
     BinaryExpr(std::string op, std::unique_ptr<Expr> lhs, std::unique_ptr<Expr> rhs): 
         Expr(Kind::BinaryExpr), 
@@ -167,7 +167,7 @@ private:
 // target must be an assignable location (lvalue), checked in semantic analysis,
 // not here. It is an Expr (right-associative, low precedence) so 'a = b = 5'
 // chains as 'a = (b = 5)'.
-class Assign : public Expr {
+class Assign: public Expr {
 public:
     Assign(std::unique_ptr<Expr> target, std::unique_ptr<Expr> value):
         Expr(Kind::Assign),
@@ -186,7 +186,7 @@ private:
 // ---------------------------------------------------------------------------
 // Statements
 // ---------------------------------------------------------------------------
-class Stmt : public ASTNode {
+class Stmt: public ASTNode {
 public:
     using ASTNode::ASTNode;
     static bool classof(const ASTNode* n) {
@@ -206,7 +206,7 @@ private:
     std::unique_ptr<Expr> m_expr;
 };
 
-class Block : public Stmt {
+class Block: public Stmt {
 public:
     Block() : Stmt(Kind::Block) {}
     void add(std::unique_ptr<Stmt> stmt) { m_stmts.push_back(std::move(stmt)); }
@@ -217,25 +217,25 @@ private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
 
-class IfStmt : public Stmt {
+class IfStmt: public Stmt {
 public:
     // else_branch may be null.
     IfStmt(std::unique_ptr<Expr> cond,
-           std::unique_ptr<Stmt> then_branch,
-           std::unique_ptr<Stmt> else_branch):
+           std::unique_ptr<Block> then_branch,
+           std::unique_ptr<Stmt> else_branch): // nullable
                 Stmt(Kind::IfStmt), 
                 m_cond(std::move(cond)),
                 m_then(std::move(then_branch)), 
                 m_else(std::move(else_branch))
             {}
     const Expr* cond() const { return m_cond.get(); }
-    const Stmt* then_branch() const { return m_then.get(); }
+    const Block* then_branch() const { return m_then.get(); }
     const Stmt* else_branch() const { return m_else.get(); }
     static bool classof(const ASTNode* n) { return n->kind() == Kind::IfStmt; }
 
 private:
     std::unique_ptr<Expr> m_cond;
-    std::unique_ptr<Stmt> m_then;
+    std::unique_ptr<Block> m_then;
     std::unique_ptr<Stmt> m_else;
 };
 
@@ -248,7 +248,7 @@ public:
 // ---------------------------------------------------------------------------
 // Declarations (Stmts)
 // ---------------------------------------------------------------------------
-class Decl : public Stmt {
+class Decl: public Stmt {
 public:
     using Stmt::Stmt;
     static bool classof(const ASTNode* n) {
@@ -262,7 +262,7 @@ public:
 // A variable declaration, e.g.  x::Int = 5
 //   name is required; type (the annotation after '::') and init (after '=')
 //   are each optional and null when absent.
-class VarDecl : public Decl {
+class VarDecl: public Decl {
 public:
     VarDecl(std::string name,
             std::unique_ptr<Expr> type,

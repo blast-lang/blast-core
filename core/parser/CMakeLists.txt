@@ -1,5 +1,5 @@
 add_library(parser STATIC
-    Ast.cpp
+    Ast.hpp AstVisitor.hpp Ast.cpp
     Parser.cpp
 )
 

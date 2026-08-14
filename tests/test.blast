@@ -1,5 +1,2 @@
 a::Int;
-foo::Float;
 a = 5;
-b = "toto";
-c = false;
