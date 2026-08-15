@@ -185,20 +185,20 @@ private:
 
 class IfStmt: public Stmt {
 public:
-    // else_branch may be null.
+    // elseBranch may be null.
     IfStmt(std::unique_ptr<Expr> cond,
-           std::unique_ptr<Block> then_branch,
-           std::unique_ptr<Stmt> else_branch): // nullable
+           std::unique_ptr<Block> thenBranch,
+           std::unique_ptr<Stmt> elseBranch): // nullable
                 Stmt(Kind::IfStmt), 
                 m_cond(std::move(cond)),
-                m_then(std::move(then_branch)), 
-                m_else(std::move(else_branch))
+                m_then(std::move(thenBranch)), 
+                m_else(std::move(elseBranch))
             {}
     const Expr* cond() const { return m_cond.get(); }
-    const Block* then_branch() const { return m_then.get(); }
+    const Block* thenBranch() const { return m_then.get(); }
 
-    bool has_else() const { return m_else != nullptr; }
-    const Stmt* else_branch() const { return m_else.get(); }   // null unless has_else()
+    bool hasElse() const { return m_else != nullptr; }
+    const Stmt* elseBranch() const { return m_else.get(); }   // null unless hasElse()
 
 
 private:
@@ -235,11 +235,11 @@ public:
 
     const std::string& name() const override { return m_name; }
 
-    bool has_type() const { return m_type != nullptr; }
-    const Expr* type() const { return m_type.get(); }   // null unless has_type()
+    bool hasType() const { return m_type != nullptr; }
+    const Expr* type() const { return m_type.get(); }   // null unless hasType()
 
-    bool has_init() const { return m_init != nullptr; }
-    const Expr* init() const { return m_init.get(); }   // null unless has_init()
+    bool hasInit() const { return m_init != nullptr; }
+    const Expr* init() const { return m_init.get(); }   // null unless hasInit()
 
 
 private:
@@ -267,6 +267,6 @@ private:
 std::string dump(const ASTNode* node);
 
 // Debug: render a node (and its subtree) as a multi-line ASCII tree.
-std::string dump_tree(const ASTNode* node);
+std::string dumpTree(const ASTNode* node);
 
 } // namespace blast::core::parser

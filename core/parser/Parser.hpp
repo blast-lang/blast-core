@@ -16,21 +16,21 @@ public:
 // Utils
 private:
     // Token at the cursor
-    const Token& current_token() const { return token_at(m_pos); }
+    const Token& currentToken() const { return tokenAt(m_pos); }
     // One-token lookahead
-    const Token& next_token() const { return token_at(m_pos + 1); }
+    const Token& nextToken() const { return tokenAt(m_pos + 1); }
 
     // Consume the current token and move to the next, returning the one consumed.
-    // Stops advancing past the end so current_token() stays on the NONE sentinel.
+    // Stops advancing past the end so currentToken() stays on the NONE sentinel.
     const Token& advance() {
-        const Token& consumed = current_token();
+        const Token& consumed = currentToken();
         if (m_pos < m_tokenizer.tokens().size()) {
             ++m_pos;
         }
         return consumed;
     }
 
-    const Token& token_at(std::size_t pos) const {
+    const Token& tokenAt(std::size_t pos) const {
         static const Token eof{TokenKind::NONE, ""};
         const auto& tokens = m_tokenizer.tokens();
         return pos < tokens.size() ? tokens[pos] : eof;
@@ -38,15 +38,15 @@ private:
 
 // Parsing
 protected:
-    std::unique_ptr<TranslationUnit> parse_translation_unit();
-    std::unique_ptr<Stmt>            parse_stmt();
-    std::unique_ptr<Decl>            parse_decl();
-    std::unique_ptr<VarDecl>         parse_vardecl();
+    std::unique_ptr<TranslationUnit> parseTranslationUnit();
+    std::unique_ptr<Stmt>            parseStmt();
+    std::unique_ptr<Decl>            parseDecl();
+    std::unique_ptr<VarDecl>         parseVarDecl();
 
     // Minimum binding power for precedent climbing
-    std::unique_ptr<Expr>            parse_expr(int min_bindpwr = 0);
+    std::unique_ptr<Expr>            parseExpr(int min_bindpwr = 0);
     // A leaf/primary expression: literal or identifier.
-    std::unique_ptr<Expr>            parse_primary();
+    std::unique_ptr<Expr>            parsePrimary();
 
 protected:
     const Tokenizer& m_tokenizer;

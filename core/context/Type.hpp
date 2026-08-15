@@ -28,10 +28,10 @@ public:
     std::size_t id() const { return this->m_id; }
     const Type* super() const { return this->m_super; }      // null only for Any, the root
 
-    bool is_unknown() const { return this->m_kind == Kind::Unknown; }
+    bool isUnknown() const { return this->m_kind == Kind::Unknown; }
     // Can a value of this type exist at runtime? Abstract types cannot be
     // instantiated; they exist to be dispatched on.
-    bool is_abstract() const { return this->m_kind == Kind::Abstract; }
+    bool isAbstract() const { return this->m_kind == Kind::Abstract; }
 private:
     Kind m_kind;
     std::string m_name;
@@ -50,11 +50,11 @@ public:
 
 class PrimitiveType: public Type {
 public:
-    PrimitiveType(std::string name, const Type* super, std::size_t id, std::size_t bit_width): Type(Kind::Primitive, std::move(name), super, id), m_bit_width(bit_width) {}
+    PrimitiveType(std::string name, const Type* super, std::size_t id, std::size_t bitWidth): Type(Kind::Primitive, std::move(name), super, id), m_bit_width(bitWidth) {}
     // The width the declaration asks for, e.g. 64 for Int64. Distinct from
     // the ABI size and alignment the type gets on a given target, which the
     // DataLayout decides.
-    std::size_t bit_width() const { return this->m_bit_width; }
+    std::size_t bitWidth() const { return this->m_bit_width; }
 private:
     std::size_t m_bit_width;
 };
@@ -108,7 +108,7 @@ private:
 
 
 // a <: b  -- walk a's super chain looking for b
-bool is_subtype(const Type* a, const Type* b);
+bool isSubtype(const Type* a, const Type* b);
 
 
 } // namespace blast::core::context

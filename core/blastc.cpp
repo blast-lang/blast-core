@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::puts("--- ast ---");
-    std::printf("%s", blast::core::parser::dump_tree(parser.root()).c_str());
+    std::printf("%s", blast::core::parser::dumpTree(parser.root()).c_str());
 
     return 0;
 }

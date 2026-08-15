@@ -10,38 +10,38 @@ class AstVisitor {
     using Kind = ASTNode::Kind;
 public:
     // Reached for non-overrided visits.
-    R visit_empty() {
+    R visitEmpty() {
         if constexpr (!std::is_void_v<R>) {
             return R{};
         }
     }
 
     // To Override: what to do when we visit a node
-    R visitIntLiteral(const IntLiteral& n)             { return self().visit_empty(); }
-    R visitFloatLiteral(const FloatLiteral& n)         { return self().visit_empty(); }
-    R visitBoolLiteral(const BoolLiteral& n)           { return self().visit_empty(); }
-    R visitStringLiteral(const StringLiteral& n)       { return self().visit_empty(); }
-    R visitIdentifier(const Identifier& n)             { return self().visit_empty(); }
-    R visitUnaryExpr(const UnaryExpr& n)               { return self().visit_empty(); }
-    R visitBinaryExpr(const BinaryExpr& n)             { return self().visit_empty(); }
-    R visitAssign(const Assign& n)                     { return self().visit_empty(); }
-    R visitExprStmt(const ExprStmt& n)                 { return self().visit_empty(); }
-    R visitIfStmt(const IfStmt& n)                     { return self().visit_empty(); }
-    R visitContinueStmt(const ContinueStmt& n)         { return self().visit_empty(); }
-    R visitBlock(const Block& n)                       { return self().visit_empty(); }
-    R visitVarDecl(const VarDecl& n)                   { return self().visit_empty(); }
-    R visitTranslationUnit(const TranslationUnit& n)   { return self().visit_empty(); }
+    R visitIntLiteral(const IntLiteral& n)             { return self().visitEmpty(); }
+    R visitFloatLiteral(const FloatLiteral& n)         { return self().visitEmpty(); }
+    R visitBoolLiteral(const BoolLiteral& n)           { return self().visitEmpty(); }
+    R visitStringLiteral(const StringLiteral& n)       { return self().visitEmpty(); }
+    R visitIdentifier(const Identifier& n)             { return self().visitEmpty(); }
+    R visitUnaryExpr(const UnaryExpr& n)               { return self().visitEmpty(); }
+    R visitBinaryExpr(const BinaryExpr& n)             { return self().visitEmpty(); }
+    R visitAssign(const Assign& n)                     { return self().visitEmpty(); }
+    R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
+    R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
+    R visitContinueStmt(const ContinueStmt& n)         { return self().visitEmpty(); }
+    R visitBlock(const Block& n)                       { return self().visitEmpty(); }
+    R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
+    R visitTranslationUnit(const TranslationUnit& n)   { return self().visitEmpty(); }
     // Non-concrete
     R visitExpr(const Expr& n)                         { return self().visitNode(n); }
     R visitDecl(const Decl& n)                         { return self().visitStmt(n); }
     R visitStmt(const Stmt& n)                         { return self().visitNode(n); }
     // Default
-    R visitNode(const ASTNode&) { return self().visit_empty(); }
+    R visitNode(const ASTNode&) { return self().visitEmpty(); }
 
     // Entry point: dispatch `node` to the matching handler on Derived.
     R visit(const ASTNode* node) {
         if (node == nullptr) {
-            return self().visit_empty();
+            return self().visitEmpty();
         }
         switch (node->kind()) {
             // Literals
@@ -79,7 +79,7 @@ public:
                 return self().visitTranslationUnit(as<TranslationUnit>(node));
         }
         // Only reachable if a Kind was added without a case above.
-        return self().visit_empty();
+        return self().visitEmpty();
     }
 
 private:

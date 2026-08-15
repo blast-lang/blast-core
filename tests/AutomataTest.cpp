@@ -7,7 +7,7 @@ using namespace blast::core::lexer;
 // DFA recognizing exactly U"abc":
 // q0 --a--> q1 --b--> q2 --c--> q3 (accept)
 // any other symbol -> sink (q4)
-static StringAutomata<char32_t> make_abc_automata() {
+static StringAutomata<char32_t> makeAbcAutomata() {
     return StringAutomata<char32_t>(
         /*initial=*/  0,
         /*accepting=*/{3},
@@ -23,25 +23,25 @@ static StringAutomata<char32_t> make_abc_automata() {
 }
 
 TEST_CASE("StringAutomata<char32_t> accepts exact string", "[automata]") {
-    auto dfa = make_abc_automata();
+    auto dfa = makeAbcAutomata();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
 }
 
 TEST_CASE("StringAutomata<char32_t> rejects partial input", "[automata]") {
-    auto dfa = make_abc_automata();
+    auto dfa = makeAbcAutomata();
     dfa.process(std::u32string(U"ab"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("StringAutomata<char32_t> rejects wrong input", "[automata]") {
-    auto dfa = make_abc_automata();
+    auto dfa = makeAbcAutomata();
     dfa.process(std::u32string(U"xyz"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("StringAutomata<char32_t> resets correctly", "[automata]") {
-    auto dfa = make_abc_automata();
+    auto dfa = makeAbcAutomata();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
     dfa.reset();
@@ -51,30 +51,30 @@ TEST_CASE("StringAutomata<char32_t> resets correctly", "[automata]") {
 }
 
 // Range constructor: builds chain q0 --s[0]--> ... --> qn (accept)
-static StringAutomata<char32_t> make_abc_range_automata() {
+static StringAutomata<char32_t> makeAbcRangeAutomata() {
     return StringAutomata<char32_t>(std::u32string(U"abc"));
 }
 
 TEST_CASE("Range ctor: accepts full input", "[automata][range_ctor]") {
-    auto dfa = make_abc_range_automata();
+    auto dfa = makeAbcRangeAutomata();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
 }
 
 TEST_CASE("Range ctor: does not accept partial input", "[automata][range_ctor]") {
-    auto dfa = make_abc_range_automata();
+    auto dfa = makeAbcRangeAutomata();
     dfa.process(std::u32string(U"ab"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Range ctor: does not accept wrong input", "[automata][range_ctor]") {
-    auto dfa = make_abc_range_automata();
+    auto dfa = makeAbcRangeAutomata();
     dfa.process(std::u32string(U"xyz"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Range ctor: resets correctly", "[automata][range_ctor]") {
-    auto dfa = make_abc_range_automata();
+    auto dfa = makeAbcRangeAutomata();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
     dfa.reset();
@@ -97,43 +97,43 @@ TEST_CASE("Range ctor: single-symbol rejects wrong symbol", "[automata][range_ct
 
 // Union (operator||) tests
 // Recognizes "abc" OR "xyz"
-static StringAutomata<char32_t> make_abc_or_xyz() {
+static StringAutomata<char32_t> makeAbcOrXyz() {
     return StringAutomata<char32_t>(std::u32string(U"abc"))
         || StringAutomata<char32_t>(std::u32string(U"xyz"));
 }
 
 TEST_CASE("Union: accepts left-side word", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
 }
 
 TEST_CASE("Union: accepts right-side word", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"xyz"));
     REQUIRE(dfa.accepts());
 }
 
 TEST_CASE("Union: rejects word matching neither side", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"def"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Union: rejects partial left-side word", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"ab"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Union: rejects partial right-side word", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"xy"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Union: resets correctly", "[automata][union]") {
-    auto dfa = make_abc_or_xyz();
+    auto dfa = makeAbcOrXyz();
     dfa.process(std::u32string(U"abc"));
     REQUIRE(dfa.accepts());
     dfa.reset();
@@ -176,49 +176,49 @@ TEST_CASE("Union: is commutative", "[automata][union]") {
 
 // Concatenation (operator+) tests
 // Recognizes "abc" followed by "xyz" → "abcxyz"
-static StringAutomata<char32_t> make_abc_then_xyz() {
+static StringAutomata<char32_t> makeAbcThenXyz() {
     return StringAutomata<char32_t>(std::u32string(U"abc"))
          + StringAutomata<char32_t>(std::u32string(U"xyz"));
 }
 
 TEST_CASE("Concat: accepts full concatenated input", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"abcxyz"));
     REQUIRE(dfa.accepts());
 }
 
 TEST_CASE("Concat: rejects first word alone", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"abc"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Concat: rejects second word alone", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"xyz"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Concat: rejects reversed order", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"xyzabc"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Concat: rejects partial first word", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"abcxy"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Concat: rejects wrong input", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"abcdef"));
     REQUIRE_FALSE(dfa.accepts());
 }
 
 TEST_CASE("Concat: resets correctly", "[automata][concat]") {
-    auto dfa = make_abc_then_xyz();
+    auto dfa = makeAbcThenXyz();
     dfa.process(std::u32string(U"abcxyz"));
     REQUIRE(dfa.accepts());
     dfa.reset();

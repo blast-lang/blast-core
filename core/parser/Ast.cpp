@@ -37,9 +37,9 @@ public:
         return "(expr-stmt " + visit(n.expr()) + ")";
     }
     std::string visitIfStmt(const IfStmt& n) {
-        std::string out = "(if " + visit(n.cond()) + " " + visit(n.then_branch());
-        if (n.has_else()) {
-            out += " else " + visit(n.else_branch());
+        std::string out = "(if " + visit(n.cond()) + " " + visit(n.thenBranch());
+        if (n.hasElse()) {
+            out += " else " + visit(n.elseBranch());
         }
         return out + ")";
     }
@@ -48,10 +48,10 @@ public:
     }
     std::string visitVarDecl(const VarDecl& n) {
         std::string out = "(var-decl " + n.name();
-        if (n.has_type()) {
+        if (n.hasType()) {
             out += " :: " + visit(n.type());
         }
-        if (n.has_init()) {
+        if (n.hasInit()) {
             out += " = " + visit(n.init());
         }
         return out + ")";
@@ -64,8 +64,8 @@ public:
     }
 
     // Every kind above is handled, so this is only reached for an absent
-    // optional child -- VarDecl::init(), IfStmt::else_branch().
-    std::string visit_empty() { return "<null>"; }
+    // optional child -- VarDecl::init(), IfStmt::elseBranch().
+    std::string visitEmpty() { return "<null>"; }
 
 private:
     std::string join(std::string out, const std::vector<std::unique_ptr<Stmt>>& stmts) {
@@ -110,14 +110,14 @@ public:
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
     std::string visitTranslationUnit(const TranslationUnit&) { return "TranslationUnit"; }
 
-    std::string visit_empty() { return "<null>"; }
+    std::string visitEmpty() { return "<null>"; }
 };
 
 // An edge to a child, with an optional role label ("lhs: ", "type: ", ...).
 using Child = std::pair<std::string, const ASTNode*>;
 
 // The labelled edges out of a node, in the order they should be drawn. This is
-// the tree-drawing counterpart of ASTVisitor::visit_children(), which walks the
+// the tree-drawing counterpart of ASTVisitor::visitChildren(), which walks the
 // same edges but discards the labels.
 class ChildrenVisitor : public AstVisitor<ChildrenVisitor, std::vector<Child>> {
 public:
@@ -134,18 +134,18 @@ public:
         return {{"", n.expr()}};
     }
     std::vector<Child> visitIfStmt(const IfStmt& n) {
-        std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.then_branch()}};
-        if (n.has_else()) {
-            children.push_back({"else: ", n.else_branch()});
+        std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.thenBranch()}};
+        if (n.hasElse()) {
+            children.push_back({"else: ", n.elseBranch()});
         }
         return children;
     }
     std::vector<Child> visitVarDecl(const VarDecl& n) {
         std::vector<Child> children;
-        if (n.has_type()) {
+        if (n.hasType()) {
             children.push_back({"type: ", n.type()});
         }
-        if (n.has_init()) {
+        if (n.hasInit()) {
             children.push_back({"init: ", n.init()});
         }
         return children;
@@ -168,12 +168,12 @@ private:
     }
 };
 
-std::string node_label(const ASTNode* node) {
+std::string nodeLabel(const ASTNode* node) {
     LabelVisitor labeller;
     return labeller.visit(node);
 }
 
-std::vector<Child> node_children(const ASTNode* node) {
+std::vector<Child> nodeChildren(const ASTNode* node) {
     ChildrenVisitor collector;
     return collector.visit(node);
 }
@@ -182,11 +182,11 @@ std::vector<Child> node_children(const ASTNode* node) {
 // bars ('|') for the ancestors that still have siblings below them; the last
 // child of a parent uses '\__' and drops the bar for its own descendants.
 void render(const ASTNode* node, const std::string& prefix, std::string& out) {
-    const std::vector<Child> children = node_children(node);
+    const std::vector<Child> children = nodeChildren(node);
     for (std::size_t i = 0; i < children.size(); ++i) {
         const bool last = (i + 1 == children.size());
         const auto& [label, child] = children[i];
-        out += prefix + (last ? "\\__ " : "|__ ") + label + node_label(child) + "\n";
+        out += prefix + (last ? "\\__ " : "|__ ") + label + nodeLabel(child) + "\n";
         render(child, prefix + (last ? "    " : "|   "), out);
     }
 }
@@ -198,8 +198,8 @@ std::string dump(const ASTNode* node) {
     return dumper.visit(node);
 }
 
-std::string dump_tree(const ASTNode* node) {
-    std::string out = node_label(node) + "\n";
+std::string dumpTree(const ASTNode* node) {
+    std::string out = nodeLabel(node) + "\n";
     render(node, "", out);
     return out;
 }

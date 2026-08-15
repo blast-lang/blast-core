@@ -9,7 +9,7 @@ using namespace blast::core::parser;
 using blast::core::lexer::Tokenizer;
 
 // Parse a source string and return the compact s-expression dump of the root.
-static std::string parse_dump(const std::string& source) {
+static std::string parseDump(const std::string& source) {
     Tokenizer tokenizer;
     tokenizer.process(source);
     SimpleParser parser(tokenizer);
@@ -57,22 +57,22 @@ TEST_CASE("dump: var-decl with type and initializer", "[ast]") {
 // --- parser (end to end) --------------------------------------------------
 
 TEST_CASE("parse: empty input yields an empty unit", "[parser]") {
-    CHECK(parse_dump("") == "(unit)");
+    CHECK(parseDump("") == "(unit)");
 }
 
 TEST_CASE("parse: single type declaration", "[parser]") {
-    CHECK(parse_dump("a::Int;") == "(unit (var-decl a :: (id Int)))");
+    CHECK(parseDump("a::Int;") == "(unit (var-decl a :: (id Int)))");
 }
 
 TEST_CASE("parse: multiple declarations preserve order", "[parser]") {
-    CHECK(parse_dump("a::Int;\nfoo::Float;") ==
+    CHECK(parseDump("a::Int;\nfoo::Float;") ==
           "(unit (var-decl a :: (id Int)) (var-decl foo :: (id Float)))");
 }
 
 // An identifier not followed by '::' is not a malformed declaration -- it is
 // the start of an expression statement.
 TEST_CASE("parse: identifier without '::' is an expression statement", "[parser]") {
-    CHECK(parse_dump("a*5;") == "(unit (expr-stmt (binary * (id a) (int 5))))");
+    CHECK(parseDump("a*5;") == "(unit (expr-stmt (binary * (id a) (int 5))))");
 }
 
 TEST_CASE("parse: statement starting with an operator throws ParseError", "[parser]") {

@@ -86,7 +86,7 @@ const std::vector<Tokenizer::Token>& Tokenizer::tokens() const {
     return this->m_tokens;
 }
 
-std::string_view Tokenizer::kind_name(Tokenizer::TokenKind kind) {
+std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
     switch (kind) {
         case Tokenizer::TokenKind::NONE: return "NONE";
         case Tokenizer::TokenKind::INT_LIT: return "INT_LIT";
@@ -117,12 +117,12 @@ std::string_view Tokenizer::kind_name(Tokenizer::TokenKind kind) {
 void Tokenizer::print() const {
     for (const Tokenizer::Token& token: this->m_tokens) {
         std::printf("[%s]   \t%s\n",
-                    std::string(kind_name(token.m_kind)).c_str(),
+                    std::string(kindName(token.m_kind)).c_str(),
                     token.m_value.c_str());
     }
 }
 
-size_t run_maximal_munch(Tokenizer::SA& rule, std::string_view input, size_t pos) {
+size_t runMaximalMunch(Tokenizer::SA& rule, std::string_view input, size_t pos) {
     rule.reset();
     size_t last_accept = pos;
     while (pos < input.size()) {
@@ -151,7 +151,7 @@ void Tokenizer::process(std::string_view input) {
         // Let's find the rule that accepts the longest stream (maximum munch)
         for (size_t i(0); i < this->m_rules.size(); i++) {
             Tokenizer::SA& rule = std::get<0>(this->m_rules[i]);
-            end = run_maximal_munch(rule, input, pos);
+            end = runMaximalMunch(rule, input, pos);
             if (end > best_end) {
                 best_end = end;
                 best_rule = i;

@@ -74,13 +74,13 @@ public:
     const Automata<SymblRange<T>>& automata() const { return this->m_dfa; }
 
     void process(const T& s) {
-        for (auto const& [range, next] : this->m_dfa.out_transitions(this->m_dfa.current())) {
+        for (auto const& [range, next] : this->m_dfa.outTransitions(this->m_dfa.current())) {
             if (range.contains(s)) {
-                this->m_dfa.force_state(next);
+                this->m_dfa.forceState(next);
                 return;
             }
         }
-        this->m_dfa.force_state(this->m_dfa.sink());
+        this->m_dfa.forceState(this->m_dfa.sink());
     }
 
     template<std::ranges::input_range Range>

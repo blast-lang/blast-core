@@ -27,7 +27,7 @@ public:
 template<Hashable T> class Automata;
 
 // Non-Deterministic Finite State Automata (NFA)
-// Used as a construction intermediate only — convert to DFA via to_dfa()
+// Used as a construction intermediate only — convert to DFA via deterministic()
 template<Hashable T>
 class NFA {
 public:
@@ -409,14 +409,14 @@ public:
     const StateInd& current() const { return m_current; }
     const StateInd& sink() const { return m_sink; }
     // Given a state, return the outbound transitions
-    const std::unordered_map<T, StateInd>& out_transitions(const StateInd& q) const {
+    const std::unordered_map<T, StateInd>& outTransitions(const StateInd& q) const {
         if (q >= this->m_transitions.size())
             throw std::out_of_range("state index out of range");
         return this->m_transitions[q];
     }
 
     // Force transition
-    void force_state(const StateInd& q) { 
+    void forceState(const StateInd& q) { 
         if (q >= this->m_transitions.size())
             throw std::out_of_range("state index out of range");
         this->m_current = q;
