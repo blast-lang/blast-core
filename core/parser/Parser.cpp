@@ -66,12 +66,8 @@ std::unique_ptr<Stmt> SimpleParser::parse_stmt() {
 
     // Otherwise an expression statement:  EXPR ';'
     std::unique_ptr<Expr> expr = this->parse_expr(0);
-    if (!expr) {
-        return nullptr;
-    }
     if (this->current_token().m_kind != TokenKind::ENDEXPR) {
-        // TODO: Throw Expected ';'
-        return nullptr;
+        throw ParseError("expected ';' after expression statement", m_pos);
     }
     this->advance();
     return std::make_unique<ExprStmt>(std::move(expr));
@@ -111,8 +107,7 @@ std::unique_ptr<Expr> SimpleParser::parse_primary() {
             return std::make_unique<Identifier>(std::move(name));
         }
         default:
-            // TODO: Throw Expected primary expression
-            return nullptr;
+            throw ParseError("expected a literal or an identifier", m_pos);
     }
 }
 
@@ -120,9 +115,6 @@ std::unique_ptr<Expr> SimpleParser::parse_expr(int min_bindpwr) {
     // `Pratt` / precedence climbing: parse a primary, then fold in infix operators
     // whose binding power is >= the current floor.
     std::unique_ptr<Expr> lhs = this->parse_primary();
-    if (!lhs) {
-        return nullptr;
-    }
 
     while (true) {
         const Token& op_tok = this->current_token();
@@ -140,9 +132,6 @@ std::unique_ptr<Expr> SimpleParser::parse_expr(int min_bindpwr) {
         // arithmetic operators are left-associative (recurse one floor higher).
         const bool right_assoc = (op_kind == TokenKind::ASSIGN);
         std::unique_ptr<Expr> rhs = this->parse_expr(right_assoc ? bp : bp + 1);
-        if (!rhs) {
-            return nullptr;
-        }
 
         if (op_kind == TokenKind::ASSIGN) {
             lhs = std::make_unique<Assign>(std::move(lhs), std::move(rhs));
@@ -170,16 +159,14 @@ std::unique_ptr<VarDecl> SimpleParser::parse_vardecl() {
         this->advance();
         tok = &this->current_token();
     } else {
-        // TODO: Throw Expected lvalue identifier
-        return nullptr;
+        throw ParseError("expected an identifier to declare", m_pos);
     }
 
     if (tok->m_kind == TokenKind::COLON_COLON) {
         this->advance();
         tok = &this->current_token();
     } else {
-        // TODO: Throw
-        return nullptr;
+        throw ParseError("expected '::' after '" + name + "'", m_pos);
     }
 
     if (tok->m_kind == TokenKind::IDENDIFIER) {
@@ -187,15 +174,13 @@ std::unique_ptr<VarDecl> SimpleParser::parse_vardecl() {
         this->advance();
         tok = &this->current_token();
     } else {
-        // TODO: Throw Expected lvalue identifier
-        return nullptr;
+        throw ParseError("expected a type name after '::'", m_pos);
     }
 
     if (tok->m_kind == TokenKind::ENDEXPR) {
         this->advance();
     } else {
-        // TODO: Throw
-        return nullptr;
+        throw ParseError("expected ';' after the declaration of '" + name + "'", m_pos);
     }
 
     // Initialization part
@@ -210,14 +195,11 @@ std::unique_ptr<VarDecl> SimpleParser::parse_vardecl() {
 
 std::unique_ptr<TranslationUnit> SimpleParser::parse_translation_unit() {
     auto unit = std::make_unique<TranslationUnit>();
-    // Parse statements until NONE (end of the token stream).
+    // Parse statements until NONE (end of the token stream). Every parse_*
+    // helper either consumes a statement or throws ParseError, so a malformed
+    // input can no longer end the loop early and yield a partial unit.
     while (current_token().m_kind != TokenKind::NONE) {
-        std::unique_ptr<Stmt> stmt = this->parse_stmt();
-        if (!stmt) {
-            // A parse failed without consuming; stop rather than spin forever.
-            break;
-        }
-        unit->add(std::move(stmt));
+        unit->add(this->parse_stmt());
     }
     return unit;
 }
