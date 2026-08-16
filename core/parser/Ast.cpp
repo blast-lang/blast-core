@@ -36,13 +36,14 @@ public:
     std::string visitExprStmt(const ExprStmt& n) {
         return "(expr-stmt " + visit(n.expr()) + ")";
     }
-    std::string visitIfStmt(const IfStmt& n) {
-        std::string out = "(if " + visit(n.cond()) + " " + visit(n.thenBranch());
-        if (n.hasElse()) {
-            out += " else " + visit(n.elseBranch());
-        }
-        return out + ")";
-    }
+    // Restore alongside IfStmt in Ast.hpp:
+    // std::string visitIfStmt(const IfStmt& n) {
+    //     std::string out = "(if " + visit(n.cond()) + " " + visit(n.thenBranch());
+    //     if (n.hasElse()) {
+    //         out += " else " + visit(n.elseBranch());
+    //     }
+    //     return out + ")";
+    // }
     std::string visitContinueStmt(const ContinueStmt&) {
         return "(continue)";
     }
@@ -104,7 +105,7 @@ public:
     }
     std::string visitAssign(const Assign&)                 { return "Assign"; }
     std::string visitExprStmt(const ExprStmt&)             { return "ExprStmt"; }
-    std::string visitIfStmt(const IfStmt&)                 { return "IfStmt"; }
+    // std::string visitIfStmt(const IfStmt&)              { return "IfStmt"; }
     std::string visitContinueStmt(const ContinueStmt&)     { return "ContinueStmt"; }
     std::string visitBlock(const Block&)                   { return "Block"; }
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
@@ -133,13 +134,14 @@ public:
     std::vector<Child> visitExprStmt(const ExprStmt& n) {
         return {{"", n.expr()}};
     }
-    std::vector<Child> visitIfStmt(const IfStmt& n) {
-        std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.thenBranch()}};
-        if (n.hasElse()) {
-            children.push_back({"else: ", n.elseBranch()});
-        }
-        return children;
-    }
+    // Restore alongside IfStmt in Ast.hpp:
+    // std::vector<Child> visitIfStmt(const IfStmt& n) {
+    //     std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.thenBranch()}};
+    //     if (n.hasElse()) {
+    //         children.push_back({"else: ", n.elseBranch()});
+    //     }
+    //     return children;
+    // }
     std::vector<Child> visitVarDecl(const VarDecl& n) {
         std::vector<Child> children;
         if (n.hasType()) {

@@ -1,211 +1,129 @@
 #include "Parser.hpp"
 #include <core/Exception.hpp>
+
+
 namespace blast::core::parser {
 
-int bindingPower(const SimpleParser::Token& t) {
-    switch (t.m_kind) {
-        case SimpleParser::TokenKind::ASSIGN: return 1;   // low, right-assoc
-        case SimpleParser::TokenKind::BIN_OP:             // +,* differentiated by value
-            if (t.m_value == "*" ) return 20;
-            if (t.m_value == "+" ) return 10;
-            return 0;
-        default: return 0;
-    }
-}
-
-/*
-
-
-Why it works — walk through 1 + 2 * 3:
-
-1. parseExpr(0) → lhs = 1. Sees + (bp 10) ≥ 0, so it consumes + and calls parseExpr(11) for the right side.
-2. parseExpr(11) → lhs = 2. Sees * (bp 20) ≥ 11, consumes *, calls parseExpr(21).
-3. parseExpr(21) → lhs = 3. Sees end (bp 0) < 21, returns 3.
-4. Back in step 2: builds (2 * 3), loops, sees end < 11, returns (2 * 3).
-5. Back in step 1: builds (1 + (2 * 3)). Correct — * bound tighter.
-
-Now flip it to 1 * 2 + 3: when the inner parseExpr(21) (called after *) sees + with bp 10 < 21, it stops and returns just 2. So * only grabs 2, and + is left for the outer call — giving ((1 * 2) + 3). The min_bp floor is exactly what prevents the tighter operator from swallowing the looser one.
-
-Associativity falls out of what floor you recurse with:
-- bp + 1 (higher floor) → left-associative: a - b - c becomes (a - b) - c.
-- bp (same floor) → right-associative: useful for = or ^ (a = b = c → a = (b = c)).
-
-So min_bp is the single parameter that encodes both precedence and associativity, which is why one small recursive function replaces the usual ladder of parseTerm / parseFactor / parseUnary functions.
-
-The min_bp = 0 default just means "top-level call: accept operators of any precedence."
-
-
-
-std::unique_ptr<Expr> SimpleParser::parseExpr(int min_bindpwr) {
-    // 1. parse the left operand (a literal, identifier, par\-enthesized expr, ...)
-    std::unique_ptr<Expr> lhs = parsePrimary();
-
-    // 2. keep folding in binary operators, as long as they bind tightly enough
-    while (true) {
-        int bp = bindingPower(peek());   // 0 if the next token isn't a bin-op
-        if (bp < min_bindpwr) break;       // <-- min_bindpwr stops the loop
-
-        std::string op = advance().m_value;
-        // right operand: recurse with a HIGHER floor so we only grab things
-        // that bind tighter than the current operator (left-associativity)
-        std::unique_ptr<Expr> rhs = parseExpr(bp + 1);
-
-        lhs = std::make_unique<BinaryExpr>(op, std::move(lhs), std::move(rhs));
-    }
-    return lhs;
-}
-*/
-
-std::unique_ptr<Stmt> SimpleParser::parseStmt() {
-    // Predictive lookahead.
-    // Declaration:  IDENT '::' ...
-    if (currentToken().m_kind == TokenKind::IDENDIFIER &&
-        nextToken().m_kind    == TokenKind::COLON_COLON) {
-        return this->parseDecl();
+void SimpleParser::parseStmt() {
+    // 'x :: T' at statement level starts a declaration. The '::' only means
+    // that here -- inside an expression it is an annotation -- which is why the
+    // decision lives at this level and not in parserIdentifier().
+    if (this->currentToken().m_kind == TokenKind::IDENDIFIER &&
+        this->nextToken().m_kind == TokenKind::COLON_COLON) {
+        this->parseVarDecl();
+    } else {
+        this->parseExpr();
     }
 
-    // Otherwise an expression statement:  EXPR ';'
-    std::unique_ptr<Expr> expr = this->parseExpr(0);
+    // Both branches leave an Expr on the stack (declarations are expressions,
+    // as in Julia); at statement level its value is discarded.
+    this->push(std::make_unique<ExprStmt>(this->popAs<Expr>()));
+
+    // ';' terminates the statement.
     if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
-        throw ParseError("expected ';' after expression statement", m_pos);
+        throw ParseError("[Stmt] Expected ';' at the end of the statement", m_pos);
     }
     this->advance();
-    return std::make_unique<ExprStmt>(std::move(expr));
 }
 
-// Parse a leaf of the AST
-std::unique_ptr<Expr> SimpleParser::parsePrimary() {
-    const Token& tok = this->currentToken();
-    switch (tok.m_kind) {
+void SimpleParser::parseDecl() {
+
+}
+
+// 'name :: Type' with an optional '= init'.
+void SimpleParser::parseVarDecl() {
+    this->parserIdentifier();
+    auto name = this->popAs<Identifier>();
+
+    if (this->currentToken().m_kind != TokenKind::COLON_COLON) {
+        throw ParseError("[VarDecl] Expected '::' after the declared name", m_pos);
+    }
+    this->advance();
+
+    // Type annotation: an identifier for now, a type expression later.
+    this->parserIdentifier();
+    auto type = this->popAs<Identifier>();
+
+    // Initializer is optional: 'a::Int;' declares without initialising.
+    std::unique_ptr<Expr> init = nullptr;
+    if (this->currentToken().m_kind == TokenKind::ASSIGN) {
+        this->advance();
+        this->parseExpr();
+        init = this->popAs<Expr>();
+    }
+
+    this->push(std::make_unique<VarDecl>(name->name(), std::move(type), std::move(init)));
+}
+
+
+void SimpleParser::parseExpr() {
+    // Let's see the first token in the stip do decide what to parse
+    switch (this->currentToken().m_kind) {
+        // ---- Simple id
+        case TokenKind::IDENDIFIER: {
+            this->parserIdentifier();
+            return;
+        }
+        //  ---- Literals
         case TokenKind::INT_LIT: {
-            std::int64_t value = std::stoll(tok.m_value);
+            std::int64_t value = std::stoll(this->currentToken().m_value);
             this->advance();
-            return std::make_unique<IntLiteral>(value);
+            this->push(std::make_unique<IntLiteral>(value));
+            return;
         }
         case TokenKind::FLOAT_LIT: {
-            double value = std::stod(tok.m_value);
+            double value = std::stod(this->currentToken().m_value);
             this->advance();
-            return std::make_unique<FloatLiteral>(value);
+            this->push(std::make_unique<FloatLiteral>(value));
+            return;
         }
         case TokenKind::BOOL_LIT: {
-            bool value = (tok.m_value == "true");
+            bool value = (this->currentToken().m_value == "true");
             this->advance();
-            return std::make_unique<BoolLiteral>(value);
+            this->push(std::make_unique<BoolLiteral>(value));
+            return;
         }
         case TokenKind::STR_LIT: {
             // Strip the surrounding quotes the lexer kept.
-            std::string value = tok.m_value;
+            std::string value = this->currentToken().m_value;
             if (value.size() >= 2) {
                 value = value.substr(1, value.size() - 2);
             }
             this->advance();
-            return std::make_unique<StringLiteral>(std::move(value));
-        }
-        case TokenKind::IDENDIFIER: {
-            std::string name = tok.m_value;
-            this->advance();
-            return std::make_unique<Identifier>(std::move(name));
+            this->push(std::make_unique<StringLiteral>(std::move(value)));
+            return;
         }
         default:
-            throw ParseError("expected a literal or an identifier", m_pos);
+            throw ParseError("[Expr] Expected a literal or an identifier", m_pos);
     }
 }
 
-std::unique_ptr<Expr> SimpleParser::parseExpr(int min_bindpwr) {
-    // `Pratt` / precedence climbing: parse a primary, then fold in infix operators
-    // whose binding power is >= the current floor.
-    std::unique_ptr<Expr> lhs = this->parsePrimary();
+void SimpleParser::parseLiteral() {
 
-    while (true) {
-        const Token& op_tok = this->currentToken();
-        int bp = bindingPower(op_tok);
-        if (bp == 0 || bp < min_bindpwr) {
-            break;  // not an infix operator, or it binds too loosely to grab here
-        }
-
-        // Capture the operator, then consume it.
-        const TokenKind op_kind = op_tok.m_kind;
-        std::string op = op_tok.m_value;
-        this->advance();
-
-        // Assignment is right-associative (recurse at the same floor); the
-        // arithmetic operators are left-associative (recurse one floor higher).
-        const bool right_assoc = (op_kind == TokenKind::ASSIGN);
-        std::unique_ptr<Expr> rhs = this->parseExpr(right_assoc ? bp : bp + 1);
-
-        if (op_kind == TokenKind::ASSIGN) {
-            lhs = std::make_unique<Assign>(std::move(lhs), std::move(rhs));
-        } else {
-            lhs = std::make_unique<BinaryExpr>(std::move(op), std::move(lhs), std::move(rhs));
-        }
-    }
-    return lhs;
 }
 
-
-std::unique_ptr<Decl> SimpleParser::parseDecl() {
-    return this->parseVarDecl();
+// Pushes exactly one Identifier -- nothing else. What follows the identifier is
+// the caller's business, since only the caller knows the context it is in.
+void SimpleParser::parserIdentifier() {
+    if (this->currentToken().m_kind != TokenKind::IDENDIFIER) {
+        throw ParseError("[Identifier] Expected an identifier", m_pos);
+    }
+    const Token& tok = this->advance();
+    this->push(std::make_unique<Identifier>(tok.m_value));
 }
 
-std::unique_ptr<VarDecl> SimpleParser::parseVarDecl() {
-    // Read-only pointer to the current token. The tokenizer's token vector is
-    // not mutated during parsing, so re-pointing after advance() stays valid --
-    // this avoids copying the Token (and its std::string) at each step.
-    const Token* tok = &this->currentToken();
-    std::string name, type;
-
-    if (tok->m_kind == TokenKind::IDENDIFIER) {
-        name = tok->m_value;
-        this->advance();
-        tok = &this->currentToken();
-    } else {
-        throw ParseError("expected an identifier to declare", m_pos);
-    }
-
-    if (tok->m_kind == TokenKind::COLON_COLON) {
-        this->advance();
-        tok = &this->currentToken();
-    } else {
-        throw ParseError("expected '::' after '" + name + "'", m_pos);
-    }
-
-    if (tok->m_kind == TokenKind::IDENDIFIER) {
-        type = tok->m_value;
-        this->advance();
-        tok = &this->currentToken();
-    } else {
-        throw ParseError("expected a type name after '::'", m_pos);
-    }
-
-    if (tok->m_kind == TokenKind::ENDEXPR) {
-        this->advance();
-    } else {
-        throw ParseError("expected ';' after the declaration of '" + name + "'", m_pos);
-    }
-
-    // Initialization part
-    std::unique_ptr<Expr> init = nullptr;
-
-    return std::make_unique<VarDecl>(
-        std::move(name),
-        std::make_unique<Identifier>(std::move(type)),
-        std::move(init)
-    );
-}
-
-std::unique_ptr<TranslationUnit> SimpleParser::parseTranslationUnit() {
+void SimpleParser::parseTranslationUnit() {
     auto unit = std::make_unique<TranslationUnit>();
-    // Parse statements until NONE (end of the token stream). Every parse*
-    // helper either consumes a statement or throws ParseError, so a malformed
-    // input can no longer end the loop early and yield a partial unit.
-    while (currentToken().m_kind != TokenKind::NONE) {
-        unit->add(this->parseStmt());
+    while (this->currentToken().m_kind != TokenKind::NONE) {
+        this->parseStmt();
+        unit->add(this->popAs<Stmt>());
     }
-    return unit;
+    this->push(std::move(unit));
 }
 
 void SimpleParser::buildAST() {
-    this->m_root = this->parseTranslationUnit();
+    this->parseTranslationUnit();
+    this->m_root = this->popAs<TranslationUnit>();
 }
 
 } // namespace blast::core::parser

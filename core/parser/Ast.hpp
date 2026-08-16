@@ -21,17 +21,18 @@ public:
         FloatLiteral,
         BoolLiteral,
         StringLiteral,
+        NothingLiteral,
         Identifier,
         UnaryExpr,
         BinaryExpr,
         Assign,
+        // --- Declarations (an expression, as in Julia; keep last in the expr range) ---
+        VarDecl,
         // --- Statements ---
         ExprStmt,
         IfStmt,
         ContinueStmt,
         Block,
-        // --- Declarations (a kind of statement; keep last in the stmt range) ---
-        VarDecl,
         // --- Root ---
         TranslationUnit,
     };
@@ -136,25 +137,6 @@ private:
     std::unique_ptr<Expr> m_rhs;
 };
 
-// Assignment 'target = value'. Unlike BinaryExpr the operands are not symmetric:
-// target must be an assignable location (lvalue), checked in semantic analysis,
-// not here. It is an Expr (right-associative, low precedence) so 'a = b = 5'
-// chains as 'a = (b = 5)'.
-class Assign: public Expr {
-public:
-    Assign(std::unique_ptr<Expr> target, std::unique_ptr<Expr> value):
-        Expr(Kind::Assign),
-        m_target(std::move(target)),
-        m_value(std::move(value))
-    {}
-    const Expr* target() const { return m_target.get(); }
-    const Expr* value() const { return m_value.get(); }
-
-private:
-    std::unique_ptr<Expr> m_target;
-    std::unique_ptr<Expr> m_value;
-};
-
 // ---------------------------------------------------------------------------
 // Statements
 // ---------------------------------------------------------------------------
@@ -163,14 +145,31 @@ public:
     using ASTNode::ASTNode;
 };
 
+// function call, assignments
 class ExprStmt : public Stmt {
 public:
-    explicit ExprStmt(std::unique_ptr<Expr> expr)
-        : Stmt(Kind::ExprStmt), m_expr(std::move(expr)) {}
+    explicit ExprStmt(std::unique_ptr<Expr> expr): Stmt(Kind::ExprStmt), m_expr(std::move(expr)) {}
     const Expr* expr() const { return m_expr.get(); }
-
 private:
     std::unique_ptr<Expr> m_expr;
+};
+
+// Assignment 'target = value'. Unlike BinaryExpr the operands are not symmetric:
+// target must be an assignable location (lvalue), checked in semantic analysis.
+// As in Julia it is an expression, so it nests and chains ('a = b = c').
+class Assign: public Expr {
+public:
+    Assign(std::unique_ptr<Expr> lhs, std::unique_ptr<Expr> rhs):
+        Expr(Kind::Assign),
+        m_lhs(std::move(lhs)),
+        m_rhs(std::move(rhs))
+    {}
+    const Expr* target() const { return this->m_lhs.get(); }
+    const Expr* value() const { return this->m_rhs.get(); }
+
+private:
+    std::unique_ptr<Expr> m_lhs;
+    std::unique_ptr<Expr> m_rhs;
 };
 
 class Block: public Stmt {
@@ -183,6 +182,7 @@ private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
 
+/*
 class IfStmt: public Stmt {
 public:
     // elseBranch may be null.
@@ -206,6 +206,7 @@ private:
     std::unique_ptr<Block> m_then;
     std::unique_ptr<Stmt> m_else;
 };
+*/
 
 class ContinueStmt : public Stmt {
 public:
@@ -213,11 +214,11 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// Declarations (Stmts)
+// Declarations (Exprs)
 // ---------------------------------------------------------------------------
-class Decl: public Stmt {
+class Decl: public Expr {
 public:
-    using Stmt::Stmt;
+    using Expr::Expr;
     // Every declaration binds a name into a scope.
     virtual const std::string& name() const = 0;
 };
@@ -241,7 +242,6 @@ public:
     bool hasInit() const { return m_init != nullptr; }
     const Expr* init() const { return m_init.get(); }   // null unless hasInit()
 
-
 private:
     std::string m_name;
     std::unique_ptr<Expr> m_type;   // Identifier now; TypeExpr later (Vector{Int})
@@ -260,7 +260,6 @@ public:
 private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
-
 
 
 // Debug: render a node (and its subtree) as an s-expression-ish string.
