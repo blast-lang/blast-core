@@ -37,7 +37,7 @@ private:
     }
 
     ASTNode* peek() { return  this->m_parse_stack.empty() ? nullptr : this->m_parse_stack.top().get(); }
-
+    
     std::unique_ptr<ASTNode> pop() {
         auto node = std::move(this->m_parse_stack.top());
         this->m_parse_stack.pop();
@@ -55,6 +55,25 @@ private:
         this->m_parse_stack.push(std::move(node));
     }
 
+    // Operator at the top of the operator stack, or the NONE sentinel when
+    // empty, so callers can compare kinds without checking for emptiness first.
+    const Token& topOperator() const {
+        static const Token none{TokenKind::NONE, ""};
+        return this->m_operator_stack.empty() ? none : this->m_operator_stack.top();
+    }
+
+    Token popOperator() {
+        Token op = std::move(this->m_operator_stack.top());
+        this->m_operator_stack.pop();
+        return op;
+    }
+
+    void pushOperator(Token op) {
+        this->m_operator_stack.push(std::move(op));
+    }
+
+    std::size_t operatorDepth() const { return this->m_operator_stack.size(); }
+
 
 // Parsing
 protected:
@@ -66,12 +85,16 @@ protected:
 
     // Parsing Expressions
     void parseExpr();
+    // A single operand: literal, identifier or a parenthesised expression.
+    void parseOperand();
+    void parseUnaryExpr();
+    // Folds the top operator with the top two operands. Reads no tokens.
+    void parseBinaryExpr();
     void parseLiteral();
     void parserIdentifier();
 
     // Root
     void parseTranslationUnit();
-
 
 protected:
     const Tokenizer& m_tokenizer;
@@ -80,6 +103,9 @@ protected:
     std::size_t m_pos;
     // Parsing stack
     std::stack<std::unique_ptr<ASTNode>> m_parse_stack;
+    // Operator stack for Shaunting-Yard algorithm
+    // https://en.wikipedia.org/wiki/Shunting_yard_algorithm
+    std::stack<Token> m_operator_stack;
     // Root of the AST, owned by the parser and populated by buildAST().
     std::unique_ptr<TranslationUnit> m_root;
 public:
