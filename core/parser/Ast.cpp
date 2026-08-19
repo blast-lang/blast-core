@@ -7,7 +7,7 @@ namespace blast::core::parser {
 namespace {
 
 // --- s-expression rendering ----------------------------------------------
-class DumpVisitor : public AstVisitor<DumpVisitor, std::string> {
+class DumpVisitor: public AstVisitor<DumpVisitor, std::string> {
 public:
     std::string visitIntLiteral(const IntLiteral& n) {
         return "(int " + std::to_string(n.value()) + ")";

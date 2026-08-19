@@ -1,5 +1,6 @@
 #include <core/lexer/Lexer.hpp>
 #include <core/parser/Parser.hpp>
+#include <core/ir/TAC.hpp>
 #include <core/Exception.hpp>
 #include <cstdio>
 #include <fstream>
@@ -37,8 +38,18 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::puts("--- ast ---");
+    std::puts("--- AST ---");
     std::printf("%s", blast::core::parser::dumpTree(parser.root()).c_str());
+
+    try {
+        blast::core::ir::tac::ASTtoTAC lowerer;
+        const auto fn = lowerer.run(*parser.root());
+        std::puts("--- TAC ---");
+        std::printf("%s", blast::core::ir::tac::dump(fn).c_str());
+    } catch (const blast::core::CodegenError& e) {
+        std::fprintf(stderr, "blastc: %s\n", e.what());
+        return 1;
+    }
 
     return 0;
 }
