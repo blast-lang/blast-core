@@ -18,6 +18,9 @@ private:
 public:
     void run(const parser::TranslationUnit& unit);
     void visitVarDecl(const parser::VarDecl& node);
+    void visitIdentifier(const parser::Identifier& node);
+    void visitBinaryExpr(const parser::BinaryExpr& node);
+    void visitAssign(const parser::Assign& node);
     void visitExprStmt(const parser::ExprStmt& node);
     void visitTranslationUnit(const parser::TranslationUnit& node);
 };

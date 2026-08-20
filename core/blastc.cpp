@@ -49,10 +49,15 @@ int main(int argc, char* argv[]) {
     ScopeResolver sr(ctx);
     TypeResolver tr(ctx);
 
-    // Resolve scopes
-    sr.run(*parser.root());
-    // Resolve Types
-    tr.run(*parser.root());
+    try {
+        // Resolve scopes
+        sr.run(*parser.root());
+        // Resolve Types
+        tr.run(*parser.root());
+    } catch (const blast::core::SemanticError& e) {
+        std::fprintf(stderr, "blastc: %s\n", e.what());
+        return 1;
+    }
 
     
     try {

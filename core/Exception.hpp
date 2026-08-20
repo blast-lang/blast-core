@@ -38,6 +38,13 @@ private:
     std::size_t m_position;
 };
 
+// Raised while resolving names and types: redeclaration, unknown name,
+// ambiguous import, type mismatch.
+class SemanticError : public Exception {
+public:
+    explicit SemanticError(const std::string& message): Exception(message) {}
+};
+
 // Raised while lowering the AST to machine code: unknown identifier,
 // unsupported node, unsupported type, ...
 class CodegenError : public Exception {
