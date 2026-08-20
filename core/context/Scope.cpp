@@ -1,4 +1,4 @@
-#include <core/context/SymblTlb.hpp>
+#include <core/context/Scope.hpp>
 
 namespace blast::core::context {
 

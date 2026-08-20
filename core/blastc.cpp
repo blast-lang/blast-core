@@ -1,5 +1,8 @@
 #include <core/lexer/Lexer.hpp>
 #include <core/parser/Parser.hpp>
+#include <core/context/Scope.hpp>
+#include <core/context/AstContext.hpp>
+#include <core/context/Resolver.hpp>
 #include <core/ir/TAC.hpp>
 #include <core/Exception.hpp>
 #include <cstdio>
@@ -7,6 +10,7 @@
 #include <string>
 
 using namespace blast::core::lexer;
+using namespace blast::core::context;
                                      
     
 
@@ -41,6 +45,16 @@ int main(int argc, char* argv[]) {
     std::puts("--- AST ---");
     std::printf("%s", blast::core::parser::dumpTree(parser.root()).c_str());
 
+    AstContext ctx;
+    ScopeResolver sr(ctx);
+    TypeResolver tr(ctx);
+
+    // Resolve scopes
+    sr.run(*parser.root());
+    // Resolve Types
+    tr.run(*parser.root());
+
+    
     try {
         blast::core::ir::tac::ASTtoTAC lowerer;
         const auto fn = lowerer.run(*parser.root());

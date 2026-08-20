@@ -51,7 +51,11 @@ private:
         return std::unique_ptr<T>(static_cast<T*>(this->pop().release()));
     }
 
+    // Every node reaches the tree through here, so this is where NodeIds are
+    // handed out: ids come out dense over one parse, and a node kind added
+    // later cannot be left unnumbered by accident.
     void push(std::unique_ptr<ASTNode> node) {
+        node->setId(this->m_next_node_id++);
         this->m_parse_stack.push(std::move(node));
     }
 
@@ -106,12 +110,17 @@ protected:
     // Operator stack for Shaunting-Yard algorithm
     // https://en.wikipedia.org/wiki/Shunting_yard_algorithm
     std::stack<Token> m_operator_stack;
+    // Next NodeId to hand out; see push().
+    NodeId m_next_node_id = 0;
     // Root of the AST, owned by the parser and populated by buildAST().
     std::unique_ptr<TranslationUnit> m_root;
 public:
     void buildAST();
     // Root of the parsed AST (null until buildAST() runs).
     const TranslationUnit* root() const { return this->m_root.get(); }
+    // Number of nodes in the parsed tree; ids run over [0, nodeCount()), which
+    // is what AstContext sizes its side tables from.
+    NodeId nodeCount() const { return this->m_next_node_id; }
 };
 
 } // namespace blast::core::parser

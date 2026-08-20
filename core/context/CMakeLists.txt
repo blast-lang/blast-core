@@ -1,7 +1,8 @@
 add_library(context STATIC
     Type.hpp Type.cpp
-    SymblTlb.hpp SymblTlb.cpp
+    Scope.hpp Scope.cpp
     AstContext.hpp AstContext.cpp
+    Resolver.hpp Resolver.cpp
 )
 
 set_target_properties(context PROPERTIES

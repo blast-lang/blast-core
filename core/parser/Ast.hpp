@@ -6,6 +6,15 @@
 
 namespace blast::core::parser {
 
+// Dense index of a node within its own tree, handed out by
+// context::AstContext::numberNodes() once parsing is done. Semantic facts
+// (symbols, types, ...) are kept in side tables indexed by this, so the AST
+// itself stays a record of syntax and nothing else.
+using NodeId = std::uint32_t;
+
+// Id of a node that has not been numbered yet.
+inline constexpr NodeId INVALID_NODE_ID = static_cast<NodeId>(-1);
+
 // AST node hierarchy for BLAST.
 //
 // Every node carries a Kind tag in the base class so AstVisitor can dispatch
@@ -47,8 +56,16 @@ public:
 
     Kind kind() const { return m_kind; }
 
+    // Index into the side tables AstContext keeps for this tree. The parser
+    // stamps it as the node is pushed, so ids are dense and unique within one
+    // parse; a node built by hand outside a parser keeps INVALID_NODE_ID and
+    // simply has no side-table entry.
+    NodeId id() const { return m_id; }
+    void setId(NodeId id) { m_id = id; }
+
 private:
     const Kind m_kind;
+    NodeId m_id = INVALID_NODE_ID;
 };
 
 // ---------------------------------------------------------------------------
