@@ -59,6 +59,7 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
     for (const auto& stmt : node.stmts()) {
         this->visit(stmt.get());
     }
+    
     // A translation unit is not an expression: it has no value.
     return NONE();
 }
