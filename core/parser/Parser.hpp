@@ -119,7 +119,7 @@ public:
     // Root of the parsed AST (null until buildAST() runs).
     const TranslationUnit* root() const { return this->m_root.get(); }
     // Number of nodes in the parsed tree; ids run over [0, nodeCount()), which
-    // is what AstContext sizes its side tables from.
+    // is what ASTContext sizes its side tables from.
     NodeId nodeCount() const { return this->m_next_node_id; }
 };
 

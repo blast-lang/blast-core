@@ -114,14 +114,6 @@ std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
     }
 }
 
-void Tokenizer::print() const {
-    for (const Tokenizer::Token& token: this->m_tokens) {
-        std::printf("[%s]   \t%s\n",
-                    std::string(kindName(token.m_kind)).c_str(),
-                    token.m_value.c_str());
-    }
-}
-
 size_t runMaximalMunch(Tokenizer::SA& rule, std::string_view input, size_t pos) {
     rule.reset();
     size_t last_accept = pos;

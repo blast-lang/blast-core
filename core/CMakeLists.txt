@@ -25,9 +25,10 @@ add_subdirectory(lexer)
 add_subdirectory(parser)
 add_subdirectory(context)
 add_subdirectory(ir)
+add_subdirectory(utils)
 
 add_executable(blastc blastc.cpp)
-target_link_libraries(blastc PRIVATE core lexer parser context ir)
+target_link_libraries(blastc PRIVATE core lexer parser context ir utils)
 
 install(
     TARGETS blastc

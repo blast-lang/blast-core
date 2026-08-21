@@ -1,8 +1,12 @@
-#include "Ast.hpp"
-#include "AstVisitor.hpp"
+#include <core/utils/Dump.hpp>
+#include <core/parser/AstVisitor.hpp>
+#include <memory>
 #include <utility>
+#include <vector>
 
-namespace blast::core::parser {
+namespace blast::core::utils {
+
+using namespace blast::core::parser;
 
 namespace {
 
@@ -193,7 +197,57 @@ void render(const ASTNode* node, const std::string& prefix, std::string& out) {
     }
 }
 
+// --- IR rendering --------------------------------------------------------
+const char* opcodeName(ir::Opcode op) {
+    switch (op) {
+#define BLAST_IR_OPCODE_CASE(name) case ir::Opcode::name: return #name;
+        BLAST_IR_OPCODES(BLAST_IR_OPCODE_CASE)
+#undef BLAST_IR_OPCODE_CASE
+    }
+    return "?";
+}
+
+std::string operandText(const ir::Operand& op) {
+    switch (op.m_kind) {
+        case ir::Operand::Kind::NONE:     return "";
+        case ir::Operand::Kind::BLOCK:    return "block_" + std::to_string(op.m_block);
+        case ir::Operand::Kind::REGISTER: return "%" + std::to_string(op.m_value);
+        case ir::Operand::Kind::LITERAL:  return std::to_string(op.m_i64);
+    }
+    return "?";
+}
+
+// "%0 = ADD %1, 2" -- the result is dropped for instructions that produce no
+// value (the terminators), and an operand left NONE is simply not printed.
+std::string instructionText(const ir::Instruction& instr) {
+    std::string text;
+    if (instr.result().m_kind != ir::Operand::Kind::NONE) {
+        text += operandText(instr.result()) + " = ";
+    }
+    text += opcodeName(instr.op());
+    if (instr.lhs().m_kind != ir::Operand::Kind::NONE) {
+        text += " " + operandText(instr.lhs());
+    }
+    if (instr.rhs().m_kind != ir::Operand::Kind::NONE) {
+        text += ", " + operandText(instr.rhs());
+    }
+    if (!instr.comment().empty()) {
+        text += "  // " + instr.comment();
+    }
+    return text;
+}
+
 } // namespace
+
+
+std::string dump(const lexer::Tokenizer& tokenizer) {
+    std::string out;
+    for (const lexer::Tokenizer::Token& token : tokenizer.tokens()) {
+        out += "[" + std::string(lexer::Tokenizer::kindName(token.m_kind)) + "]   \t"
+             + token.m_value + "\n";
+    }
+    return out;
+}
 
 std::string dump(const ASTNode* node) {
     DumpVisitor dumper;
@@ -206,4 +260,16 @@ std::string dumpTree(const ASTNode* node) {
     return out;
 }
 
-} // namespace blast::core::parser
+std::string dump(const ir::Function& fn) {
+    std::string text = "fn @" + fn.name() + " {\n";
+    for (const ir::BasicBlock& block : fn.blocks()) {
+        text += "block_" + std::to_string(block.id()) + ":\n";
+        for (const ir::Instruction& instr : block.instrs()) {
+            text += "  " + instructionText(instr) + "\n";
+        }
+    }
+    text += "}\n";
+    return text;
+}
+
+} // namespace blast::core::utils

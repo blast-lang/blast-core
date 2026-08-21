@@ -1,9 +1,10 @@
 #include <core/lexer/Lexer.hpp>
 #include <core/parser/Parser.hpp>
 #include <core/context/Scope.hpp>
-#include <core/context/AstContext.hpp>
+#include <core/context/ASTContext.hpp>
 #include <core/context/Resolver.hpp>
-#include <core/ir/TAC.hpp>
+#include <core/ir/IR.hpp>
+#include <core/utils/Dump.hpp>
 #include <core/Exception.hpp>
 #include <cstdio>
 #include <fstream>
@@ -31,7 +32,7 @@ int main(int argc, char* argv[]) {
     blast::core::parser::SimpleParser parser(tokenizer);
     try {
         tokenizer.process(source);
-        tokenizer.print();
+        std::printf("%s", blast::core::utils::dump(tokenizer).c_str());
 
         parser.buildAST();
     } catch (const blast::core::LexError& e) {
@@ -43,9 +44,9 @@ int main(int argc, char* argv[]) {
     }
 
     std::puts("--- AST ---");
-    std::printf("%s", blast::core::parser::dumpTree(parser.root()).c_str());
+    std::printf("%s", blast::core::utils::dumpTree(parser.root()).c_str());
 
-    AstContext ctx;
+    ASTContext ctx;
     ScopeResolver sr(ctx);
     TypeResolver tr(ctx);
 
@@ -61,10 +62,10 @@ int main(int argc, char* argv[]) {
 
     
     try {
-        blast::core::ir::tac::ASTtoTAC lowerer;
+        blast::core::ir::SSAIR lowerer;
         const auto fn = lowerer.run(*parser.root());
-        std::puts("--- TAC ---");
-        std::printf("%s", blast::core::ir::tac::dump(fn).c_str());
+        std::puts("--- IR ---");
+        std::printf("%s", blast::core::utils::dump(fn).c_str());
     } catch (const blast::core::CodegenError& e) {
         std::fprintf(stderr, "blastc: %s\n", e.what());
         return 1;

@@ -35,5 +35,4 @@ FetchContent_MakeAvailable(Catch2)
 include(CTest)
 
 add_subdirectory(core)
-add_subdirectory(blastexe)
 add_subdirectory(tests)

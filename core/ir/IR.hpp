@@ -5,12 +5,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include <core/context/Type.hpp>
+#include <core/context/ASTContext.hpp>
 #include <core/parser/AstVisitor.hpp>
 
 
 // SSA (Static Single Assignment) TAC (Three Adress Code)
-namespace blast::core::ir::tac {
+namespace blast::core::ir {
+
 
 using BlockId = uint32_t;
 using ValueId  = uint32_t;
@@ -55,44 +56,23 @@ inline Operand INT_LIT(std::int64_t v) {
 }
 
 
-// Opcodes are grouped by role and kept contiguous within each group, as with
-// ASTNode::Kind, so classifying an instruction stays a range check. The
-// terminators come last and isTerminator() depends on that: keep new opcodes
-// inside their group.
-//
-// Opcodes are not typed: there is one ADD, not ADD/FADD. Whether it is an
-// integer or a floating-point add is decided by the type of its operands,
-// which the type system already knows. The alternative (LLVM's) is to encode
-// the type in the opcode; that duplicates information and doubles the enum.
-enum class Opcode : std::uint8_t {
-    // Arithmetic: result = lhs op rhs
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    NEG,        // unary, reads lhs only
+// The single list every opcode-keyed table is generated from, so a new opcode
+// cannot be added to one and forgotten in another. Order is load-bearing:
+// isComparison() and isTerminator() below are range checks over it.
+#define BLAST_IR_OPCODES(X)                     \
+    /* Arithmetic: result = lhs op rhs */       \
+    X(ADD) X(SUB) X(MUL) X(DIV)                 \
+    X(NEG)  /* unary '-' */                     \
+    /* Comparisons: LT .. NE */                 \
+    X(LT) X(LE) X(GT) X(GE) X(EQ) X(NE)         \
+    X(COPY) X(CALL)                             \
+    /* Terminators: BR .. end */                \
+    X(BR) X(CBR) X(RET)
 
-    // Comparison: result is a Bool
-    // One opcode per relation rather than a single REL with a side field,
-    // so a switch over the opcode is exhaustive on its own.
-    LT,
-    LE,
-    GT,
-    GE,
-    EQ,
-    NE,
-
-    // Copy: result = lhs
-    COPY,
-
-    // Call
-    // Multiple dispatch makes this central, and it needs N arguments, which
-    CALL,
-
-    // Terminators: exactly one, always last in a block
-    BR,         // unconditional; lhs = target BLOCK
-    CBR,        // conditional; lhs = condition, rhs = then BLOCK, result = else BLOCK
-    RET,        // lhs = returned value, or NONE
+enum class Opcode: std::uint8_t {
+#define BLAST_IR_OPCODE_ENUMERATOR(name) name,
+    BLAST_IR_OPCODES(BLAST_IR_OPCODE_ENUMERATOR)
+#undef BLAST_IR_OPCODE_ENUMERATOR
 };
 
 constexpr bool isTerminator(Opcode op) {
@@ -195,7 +175,7 @@ public:
 
 
 // Translate AST to TAC
-class ASTtoTAC: public parser::AstVisitor<ASTtoTAC, Operand> {
+class SSAIR: public parser::AstVisitor<SSAIR, Operand> {
 public:
     Function run(const parser::TranslationUnit& unit);
 
@@ -212,11 +192,10 @@ public:
 
 public:
 
-    ASTtoTAC():
+    SSAIR():
         m_current_fct(0),
         m_current_block(0),
-        m_fn(0, "blast_main"),
-        m_vars()
+        m_fn(0, "blast_main")
     {}
 
     Function& currentFct() {
@@ -230,12 +209,7 @@ public:
 private:
     FctId m_current_fct;
     BlockId m_current_block;
-
     Function m_fn;
-    // Name -> the value currently bound to it
-    std::unordered_map<std::string, Operand> m_vars;
 };
 
-std::string dump(const Function& fn);
-
-} // namespace blast::core::ir::tac
+} // namespace blast::core::ir

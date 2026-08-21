@@ -1,5 +1,5 @@
 add_library(ir STATIC
-    TAC.hpp TAC.cpp
+    IR.hpp IR.cpp
 )
 
 set_target_properties(ir PROPERTIES
@@ -12,7 +12,7 @@ target_include_directories(ir PUBLIC
     $<INSTALL_INTERFACE:${blast_install_includedir}>
 )
 
-# TAC.hpp holds context::Type* on values, so the dependency is part of the
+# IR.hpp holds context::Type* on values, so the dependency is part of the
 # interface, not just the implementation.
 target_link_libraries(ir PUBLIC context parser)
 

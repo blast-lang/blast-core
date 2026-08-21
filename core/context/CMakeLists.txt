@@ -1,7 +1,7 @@
 add_library(context STATIC
     Type.hpp Type.cpp
     Scope.hpp Scope.cpp
-    AstContext.hpp AstContext.cpp
+    ASTContext.hpp ASTContext.cpp
     Resolver.hpp Resolver.cpp
 )
 

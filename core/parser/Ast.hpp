@@ -7,7 +7,7 @@
 namespace blast::core::parser {
 
 // Dense index of a node within its own tree, handed out by
-// context::AstContext::numberNodes() once parsing is done. Semantic facts
+// context::ASTContext::numberNodes() once parsing is done. Semantic facts
 // (symbols, types, ...) are kept in side tables indexed by this, so the AST
 // itself stays a record of syntax and nothing else.
 using NodeId = std::uint32_t;
@@ -56,7 +56,7 @@ public:
 
     Kind kind() const { return m_kind; }
 
-    // Index into the side tables AstContext keeps for this tree. The parser
+    // Index into the side tables ASTContext keeps for this tree. The parser
     // stamps it as the node is pushed, so ids are dense and unique within one
     // parse; a node built by hand outside a parser keeps INVALID_NODE_ID and
     // simply has no side-table entry.
@@ -278,11 +278,5 @@ private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
 
-
-// Debug: render a node (and its subtree) as an s-expression-ish string.
-std::string dump(const ASTNode* node);
-
-// Debug: render a node (and its subtree) as a multi-line ASCII tree.
-std::string dumpTree(const ASTNode* node);
 
 } // namespace blast::core::parser

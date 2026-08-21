@@ -3,17 +3,16 @@
 #include <core/context/Type.hpp>
 #include <core/parser/AstVisitor.hpp>
 #include <core/context/Scope.hpp>
-#include <core/context/AstContext.hpp>
+#include <core/context/ASTContext.hpp>
 
 namespace blast::core::context {
 
 class ScopeResolver: public parser::AstVisitor<ScopeResolver, void> {
 public:
-    ScopeResolver(AstContext& ctx): m_ctx(&ctx), m_current_scope(nullptr), m_next_id(0) {}
+    ScopeResolver(ASTContext& ctx): m_ctx(&ctx), m_current_scope(nullptr) {}
 private:
-    AstContext* m_ctx;
+    ASTContext* m_ctx;
     Scope*      m_current_scope;
-    SymbolId    m_next_id;
 
 public:
     void run(const parser::TranslationUnit& unit);
@@ -25,16 +24,19 @@ public:
     void visitTranslationUnit(const parser::TranslationUnit& node);
 };
 
-// Fills Symbol::setType() and AstContext::setNodeType()
+// Fills Symbol::setType() and ASTContext::setNodeType()
 class TypeResolver: public parser::AstVisitor<TypeResolver, const Type*> {
 public:
-    TypeResolver(AstContext& ctx): m_ctx(&ctx) {}
+    TypeResolver(ASTContext& ctx): m_ctx(&ctx) {}
 private:
-    AstContext* m_ctx;
+    ASTContext* m_ctx;
 
 public:
     void run(const parser::TranslationUnit& unit);
     const Type* visitVarDecl(const parser::VarDecl& node);
+    const Type* visitIdentifier(const parser::Identifier& node);
+    const Type* visitBinaryExpr(const parser::BinaryExpr& node);
+    const Type* visitAssign(const parser::Assign& node);
     const Type* visitExprStmt(const parser::ExprStmt& node);
     const Type* visitTranslationUnit(const parser::TranslationUnit& node);
 };

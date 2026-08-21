@@ -140,7 +140,6 @@ public:
 
     // Processing
     void process(std::string_view input);
-    void print() const;
 
 protected:
     // Set of rules

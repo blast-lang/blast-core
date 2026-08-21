@@ -12,7 +12,7 @@ void ScopeResolver::run(const parser::TranslationUnit& unit) {
 
 
 void ScopeResolver::visitTranslationUnit(const parser::TranslationUnit& node) {
-    for (const auto& stmt : node.stmts()) {
+    for (const auto& stmt: node.stmts()) {
         this->visit(stmt.get());
     }
 }
@@ -22,47 +22,34 @@ void ScopeResolver::visitExprStmt(const parser::ExprStmt& node) {
 }
 
 void ScopeResolver::visitVarDecl(const parser::VarDecl& node) {
-    // Resolve the type annotation, it is a name use like any other
-    if (node.hasType() && node.type()->kind() == parser::ASTNode::Kind::Identifier) {
-        const auto* type_name = static_cast<const parser::Identifier*>(node.type());
-        const Scope::LookupResult r = this->m_current_scope->lookup(type_name->name());
-        if (r.ambiguous) {
-            throw SemanticError("type name '" + type_name->name() + "' is supplied by more than one import");
-        }
-        if (r.symbol == nullptr) {
-            throw SemanticError("unknown type '" + type_name->name() + "'");
-        }
-        if (r.symbol->kind() != Symbol::Kind::Type) {
-            throw SemanticError("'" + type_name->name() + "' is not a type");
-        }
-        // Register the type Symbol
-        this->m_ctx->setNodeSymbol(type_name->id(), r.symbol);
+    // First let's see if we are declaring a unique symbol
+    if (this->m_current_scope->hasSymbol(node.name())) {
+        // Throw 'Variable already declared in this scope'
     }
 
-    // Try declaring variable into the current scope
-    Symbol* v = this->m_current_scope->declare(Symbol::Kind::Variable, node.name(), &node);
-    if (v == nullptr) {
-        throw SemanticError("'" + node.name() + "' is already declared in this scope");
+    // Let's declare this new symbol in the scope
+    Symbol* v = this->m_current_scope->declare(node.name(), Symbol::Kind::Variable);
+    // Let's bind this node to its resolved symbol
+    this->m_ctx->setNodeSymbol(&node, v);
+    
+    if (node.hasType()) {
+        this->visit(node.type());
     }
 
-    // Set new id of Symbol as this is a genuine new one
-    v->setId(this->m_next_id++);
-    // Store it on the node's symbol table
-    this->m_ctx->setNodeSymbol(node.id(), v);
-
-    std::printf("Found declaration of %s in scope %d \n", node.name().c_str(),
-                static_cast<int>(this->m_current_scope->kind()));
+    if (node.hasInit()) {
+        this->visit(node.init());
+    }
 }
 
 void ScopeResolver::visitIdentifier(const parser::Identifier& node) {
-    const Scope::LookupResult r = this->m_current_scope->lookup(node.name());
-    if (r.ambiguous) {
-        throw SemanticError("'" + node.name() + "' is supplied by more than one import");
+    Symbol* s = this->m_current_scope->lookup(node.name());
+    if (s == nullptr) {
+        // Throw: Identifier not declared in this scope
+        std::printf("[AF] Unknown Identifier %s\n", node.name().c_str());
+    } else {
+        this->m_ctx->setNodeSymbol(&node, s);
+        std::printf("[AF] Visited identifier %s\n", node.name().c_str());
     }
-    if (r.symbol == nullptr) {
-        throw SemanticError("'" + node.name() + "' is not declared in this scope");
-    }
-    this->m_ctx->setNodeSymbol(node.id(), r.symbol);
 }
 
 void ScopeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
@@ -71,32 +58,15 @@ void ScopeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
 }
 
 void ScopeResolver::visitAssign(const parser::Assign& node) {
-    // Value first, so 'c = c' cannot see the binding the target is about to make
-    this->visit(node.value());
-
-    const parser::Expr* target = node.target();
-    if (target->kind() != parser::ASTNode::Kind::Identifier) {
-        throw SemanticError("assignment target is not a name");
-    }
-    const auto* name = static_cast<const parser::Identifier*>(target);
-
-    const Scope::LookupResult r = this->m_current_scope->lookup(name->name());
-    if (r.ambiguous) {
-        throw SemanticError("'" + name->name() + "' is supplied by more than one import");
-    }
-    if (r.symbol == nullptr) {
-        throw SemanticError("undefined name '" + name->name() + "'");
-    }
-    this->m_ctx->setNodeSymbol(name->id(), r.symbol);
+    
 }
 
 void TypeResolver::run(const parser::TranslationUnit& unit) {
     this->visit(&unit);
 }
 
-
 const Type* TypeResolver::visitTranslationUnit(const parser::TranslationUnit& node) {
-    for (const auto& stmt : node.stmts()) {
+    for (const auto& stmt: node.stmts()) {
         this->visit(stmt.get());
     }
     return nullptr;
@@ -107,31 +77,37 @@ const Type* TypeResolver::visitExprStmt(const parser::ExprStmt& node) {
 }
 
 const Type* TypeResolver::visitVarDecl(const parser::VarDecl& node) {
-    // At this point, scope and symbol where already resolved
-    Symbol* v = this->m_ctx->nodeSymbol(node.id());
-    if (v == nullptr) {
-        throw SemanticError("'" + node.name() + "' was never resolved to a symbol");
+    // We already ScopeResolver, so by this point this node should have a symbol for this node
+    //
+    Symbol* v = this->m_ctx->getNodeSymbol(&node);
+    if (node.hasType()) {
+        // Lookup the type hint symbol, it was already visited by ScopeResolver
+        Symbol* ts = this->m_ctx->getNodeSymbol(node.type());
+        Type* declared = ts ? ts->type() : nullptr;
+        // If undeclared -> Throw ?
+        if (declared) {
+            std::printf("[AF] Identifier %s is of type %s\n", node.name().c_str(), declared->name().c_str());
+            // Set node's and variable's type
+            this->m_ctx->setNodeType(&node, declared);
+            v->setType(declared);
+            return declared;
+        } else {
+            std::printf("[AF] Identifier %s has undefined type\n", node.name().c_str());
+        }
     }
+    return nullptr;
+}
 
-    // Get this variable's declaration type by using the NodeId of its Expr node
-    Symbol* v_type_symbol = this->m_ctx->nodeSymbol(node.type()->id());
-    if (v_type_symbol == nullptr || v_type_symbol->type() == nullptr) {
-        throw SemanticError("no type is bound to the annotation of '" + node.name() + "'");
-    }
-    const Type* v_type = v_type_symbol->type();
+const Type* TypeResolver::visitIdentifier(const parser::Identifier& node) {
+    return nullptr;
+}
 
-   if (node.init() != nullptr) {
-        //const Type* actual = this->visit(node.init());
-        // throw mismatch -> type error
-    }
+const Type* TypeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
+    return nullptr;
+}
 
-    // Set this variable's type info
-    v->setType(v_type);
-    // Set this node's type info
-    this->m_ctx->setNodeType(node.id(), v_type);
-
-    std::printf("Variable %s is of type %s \n", v->name().c_str(), v_type->name().c_str());
-    return v_type;
+const Type* TypeResolver::visitAssign(const parser::Assign& node) {
+    return nullptr;
 }
 
 }

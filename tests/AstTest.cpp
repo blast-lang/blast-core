@@ -1,11 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <core/parser/Parser.hpp>
+#include <core/utils/Dump.hpp>
 #include <core/Exception.hpp>
 #include <memory>
 #include <string>
 
 using namespace blast::core;
 using namespace blast::core::parser;
+using blast::core::utils::dump;
 using blast::core::lexer::Tokenizer;
 
 // Parse a source string and return the compact s-expression dump of the root.

@@ -4,8 +4,6 @@ add_executable(blast_tests
     AutomataTest.cpp
     LexerTest.cpp
     AstTest.cpp
-    ScopeTest.cpp
-    ResolverTest.cpp
 )
 
 # Automata is header-only template code — include path only, no DLL dependency
@@ -18,6 +16,7 @@ target_link_libraries(blast_tests PRIVATE
     lexer
     parser
     context
+    utils
     core
 )
 
