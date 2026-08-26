@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
 
     
     try {
-        blast::core::ir::SSAIR lowerer;
+        blast::core::ir::SSAIR lowerer(ctx);
         const auto fn = lowerer.run(*parser.root());
         std::puts("--- IR ---");
         std::printf("%s", blast::core::utils::dump(fn).c_str());

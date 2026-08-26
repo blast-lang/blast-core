@@ -58,7 +58,8 @@ void ScopeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
 }
 
 void ScopeResolver::visitAssign(const parser::Assign& node) {
-    
+    this->visit(node.value());
+    this->visit(node.target());
 }
 
 void TypeResolver::run(const parser::TranslationUnit& unit) {

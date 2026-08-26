@@ -225,11 +225,13 @@ std::string instructionText(const ir::Instruction& instr) {
         text += operandText(instr.result()) + " = ";
     }
     text += opcodeName(instr.op());
+    bool has_operand = false;
     if (instr.lhs().m_kind != ir::Operand::Kind::NONE) {
         text += " " + operandText(instr.lhs());
+        has_operand = true;
     }
     if (instr.rhs().m_kind != ir::Operand::Kind::NONE) {
-        text += ", " + operandText(instr.rhs());
+        text += (has_operand ? ", " : " ") + operandText(instr.rhs());
     }
     if (!instr.comment().empty()) {
         text += "  // " + instr.comment();

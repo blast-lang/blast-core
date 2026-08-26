@@ -34,21 +34,35 @@ Operand SSAIR::visitStringLiteral(const parser::StringLiteral&) {
 }
 
 Operand SSAIR::visitIdentifier(const parser::Identifier& node) {
-    return NONE();
+    // Get the associated symbols's register (if it exist)
+    return this->getLKO(this->m_ctx->getNodeSymbol(&node));
 }
 
 Operand SSAIR::visitBinaryExpr(const parser::BinaryExpr& node) {
     const Operand lhs = this->visit(node.lhs());
     const Operand rhs = this->visit(node.rhs());
-    return this->currentBlock().newInstruction(lhs, rhs, opcodeFor(node.op()));
+    return this->addInstruction(lhs, rhs, opcodeFor(node.op()));
 }
 
 Operand SSAIR::visitVarDecl(const parser::VarDecl& node) {
-    return NONE();
+    Operand reg;
+    context::Symbol* v = this->m_ctx->getNodeSymbol(&node);
+    if (node.hasInit()) {
+        reg = this->visit(node.init());
+    } else {
+        // Get default assign (0 for int)
+        reg = INT_LIT(0);
+    }
+    // Register attributer register for variable
+    this->setLKO(v, reg);
+    return reg;
 }
 
 Operand SSAIR::visitAssign(const parser::Assign& node) {
-    return NONE();
+    const Operand rhs = this->visit(node.value());
+    context::Symbol* s_lhs = this->m_ctx->getNodeSymbol(node.target());
+    this->setLKO(s_lhs, rhs);
+    return rhs;
 }
 
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {

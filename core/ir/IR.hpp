@@ -3,13 +3,16 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+#include <variant>
 
+#include <core/Exception.hpp>
 #include <core/context/ASTContext.hpp>
 #include <core/parser/AstVisitor.hpp>
 
 
-// SSA (Static Single Assignment) TAC (Three Adress Code)
+// SSA (Static Single Assignment) Form
 namespace blast::core::ir {
 
 
@@ -17,8 +20,29 @@ using BlockId = uint32_t;
 using ValueId  = uint32_t;
 using FctId  = uint32_t;
 
-// Labels: prefix '%' for local and '@' for global
+enum class Type {
+    I1,
+    I8,
+    I16,
+    I32,
+    I64,
 
+    F32,
+    F64,
+
+    PTR,
+    VOID
+};
+
+inline bool isInt(Type t) {
+    return t >= Type::I1 && t <= Type::I64;
+}
+
+inline bool isFloat(Type t) {
+    return t >= Type::F32 && t <= Type::F64;
+}
+
+// Labels: prefix '%' for local and '@' for global
 struct Operand {
     enum class Kind {
         NONE,
@@ -26,7 +50,9 @@ struct Operand {
         REGISTER,
         LITERAL,
     };
+
     Kind m_kind;
+    Type m_type;
     union {
         ValueId  m_value;   // REGISTER
         BlockId  m_block;   // BLOCK
@@ -37,6 +63,7 @@ struct Operand {
 inline Operand NONE() {
     return {
         .m_kind = Operand::Kind::NONE,
+        .m_type = Type::VOID,
         .m_i64 = 0
     };
 }
@@ -44,6 +71,7 @@ inline Operand NONE() {
 inline Operand REGISTER(ValueId v) {
     return {
         .m_kind = Operand::Kind::REGISTER,
+        .m_type = Type::I64,
         .m_value = v
     };
 }
@@ -51,6 +79,7 @@ inline Operand REGISTER(ValueId v) {
 inline Operand INT_LIT(std::int64_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::I64,
         .m_i64 = v
     };
 }
@@ -67,7 +96,9 @@ inline Operand INT_LIT(std::int64_t v) {
     X(LT) X(LE) X(GT) X(GE) X(EQ) X(NE)         \
     X(COPY) X(CALL)                             \
     /* Terminators: BR .. end */                \
-    X(BR) X(CBR) X(RET)
+    X(BR) X(CBR) X(RET)                         \
+    /* Addressing */                             \
+    X(LOAD)
 
 enum class Opcode: std::uint8_t {
 #define BLAST_IR_OPCODE_ENUMERATOR(name) name,
@@ -129,25 +160,26 @@ public:
     std::vector<BlockId>& preds() { return this->m_preds; }
     const std::vector<BlockId>& preds() const { return this->m_preds; }
 
-    Operand newInstruction(Operand lhs, Operand rhs, Opcode op) {
-        // Generate a new valueId (register) for the current function
-        ValueId new_vid = this->m_instrs.size();
-        // And create the instruction for it
-        // And store it as part of current block's instructions
-        this->m_instrs.push_back(Instruction(REGISTER(new_vid), lhs, rhs, op));
-        return REGISTER(new_vid);
+    // vid is minted by the owning Function: value ids are unique per function,
+    // not per block. Prefer Function::addInstruction over calling this.
+    Operand addInstruction(ValueId vid, Operand lhs, Operand rhs, Opcode op) {
+        this->m_instrs.push_back(Instruction(REGISTER(vid), lhs, rhs, op));
+        return REGISTER(vid);
     }
 };
 
-struct Function {
+class Function {
 private:
     FctId m_id;
     // Assembly-compatible Mangled Name
     std::string m_name;
     std::vector<BasicBlock> m_blocks;   // block 0 is the entry
+    ValueId m_next_value;
 
 public:
-    Function(FctId id, std::string name): m_id(id), m_name(name), m_blocks() {
+    Function(FctId id, std::string name):
+        m_id(id), m_name(name), m_blocks(), m_next_value(0)
+    {
         this->addBlock();
     }
 
@@ -163,16 +195,51 @@ public:
     const std::vector<BasicBlock>& blocks() const { return this->m_blocks; }
 
     const BasicBlock& getBlock(BlockId bid) const {
-        // Todo check bounds
+        if (bid >= this->m_blocks.size())
+            throw CodegenError("[Function] Unknown block id " + std::to_string(bid)
+                               + " in '" + this->m_name + "'");
         return this->m_blocks[bid];
     };
 
     BasicBlock& getBlock(BlockId bid) {
-        // Todo check bounds
-        return this->m_blocks[bid];
+        const Function& self = *this;
+        return const_cast<BasicBlock&>(self.getBlock(bid));
+    };
+
+    ValueId newValue() { return this->m_next_value++; }
+
+    Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op) {
+        return this->getBlock(bid).addInstruction(this->newValue(), lhs, rhs, op);
+    }
+};
+
+class Module {
+private:
+    std::vector<Function> m_fcts;
+
+public:
+
+    Module() = default;
+
+    void addFct(std::string name) {
+        this->m_fcts.push_back(Function(this->m_fcts.size(), name));
+    }
+
+    Function& getFct(FctId fid) {
+        if (fid >= this->m_fcts.size())
+            throw CodegenError("[Module] Unknown function id " + std::to_string(fid));
+        return this->m_fcts[fid];
     };
 };
 
+
+// std::pair has no std::hash. Both halves are uint32, so packing them into a
+// 64-bit size_t is exact: distinct keys never collide.
+struct SymbolBlockHash {
+    std::size_t operator()(const std::pair<context::SymbolId, BlockId>& k) const noexcept {
+        return (static_cast<std::size_t>(k.first) << 32) | k.second;
+    }
+};
 
 // Translate AST to TAC
 class SSAIR: public parser::AstVisitor<SSAIR, Operand> {
@@ -192,24 +259,55 @@ public:
 
 public:
 
-    SSAIR():
+    SSAIR(context::ASTContext& ctx):
         m_current_fct(0),
         m_current_block(0),
-        m_fn(0, "blast_main")
-    {}
+        m_main(),
+        m_ctx(&ctx),
+        m_lko()
+    {
+        this->m_main.addFct("blast_main");
+    }
 
     Function& currentFct() {
-        return this->m_fn;
+        return this->m_main.getFct(this->m_current_fct);
     }
 
     BasicBlock& currentBlock() {
         return this->currentFct().getBlock(this->m_current_block);
     }
 
+    Operand addInstruction(Operand lhs, Operand rhs, Opcode op) {
+        return this->currentFct().addInstruction(this->m_current_block, lhs, rhs, op);
+    }
+
+    void setLKO(context::Symbol* s, const Operand& o) {
+        if (s) {
+            this->m_lko.insert_or_assign(
+                std::make_pair(s->id(), this->currentBlock().id()), o
+            );
+        }
+    }
+
+    Operand getLKO(context::Symbol* s) {
+        if (s) {
+            const auto p = std::make_pair(s->id(), this->currentBlock().id());
+            auto it = this->m_lko.find(p);
+            if (it == this->m_lko.end()) {
+                return NONE();
+            }
+            return it->second;
+        }
+        return NONE();
+    }
+
 private:
     FctId m_current_fct;
     BlockId m_current_block;
-    Function m_fn;
+    Module m_main;
+    context::ASTContext* m_ctx;
+    // Map the Last Known Operand (register) attributed to a given variable
+    std::unordered_map<std::pair<context::SymbolId, BlockId>, Operand, SymbolBlockHash> m_lko;
 };
 
 } // namespace blast::core::ir
