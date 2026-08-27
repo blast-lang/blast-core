@@ -225,6 +225,9 @@ public:
         this->m_fcts.push_back(Function(this->m_fcts.size(), name));
     }
 
+    std::vector<Function>& fcts() { return this->m_fcts; }
+    const std::vector<Function>& fcts() const { return this->m_fcts; }
+
     Function& getFct(FctId fid) {
         if (fid >= this->m_fcts.size())
             throw CodegenError("[Module] Unknown function id " + std::to_string(fid));

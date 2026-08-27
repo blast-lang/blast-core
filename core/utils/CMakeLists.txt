@@ -15,6 +15,8 @@ target_include_directories(utils PUBLIC
 # Dump.hpp names lexer, parser and ir types in its signatures, so every stage it
 # renders is part of the interface. Nothing may depend on utils in return.
 target_link_libraries(utils PUBLIC lexer parser ir)
+# The IR walk is an implementation detail: no codegen type reaches Dump.hpp.
+target_link_libraries(utils PRIVATE codegen)
 
 install(
     TARGETS utils

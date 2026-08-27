@@ -1,4 +1,5 @@
 #include <core/utils/Dump.hpp>
+#include <core/codegen/IRVisitor.hpp>
 #include <core/parser/AstVisitor.hpp>
 #include <memory>
 #include <utility>
@@ -239,6 +240,32 @@ std::string instructionText(const ir::Instruction& instr) {
     return text;
 }
 
+// Each level frames its children and delegates the descent to the base.
+class IRDumpVisitor: public codegen::IRVisitor<IRDumpVisitor> {
+    using Base = codegen::IRVisitor<IRDumpVisitor>;
+
+public:
+    void visitFunction(const ir::Function& fn) {
+        this->m_text += "fn @" + fn.name() + " {\n";
+        this->Base::visitFunction(fn);
+        this->m_text += "}\n";
+    }
+
+    void visitBlock(const ir::BasicBlock& block) {
+        this->m_text += "block_" + std::to_string(block.id()) + ":\n";
+        this->Base::visitBlock(block);
+    }
+
+    void visitInstruction(const ir::Instruction& instr) {
+        this->m_text += "  " + instructionText(instr) + "\n";
+    }
+
+    std::string& text() { return this->m_text; }
+
+private:
+    std::string m_text;
+};
+
 } // namespace
 
 
@@ -263,15 +290,9 @@ std::string dumpTree(const ASTNode* node) {
 }
 
 std::string dump(const ir::Function& fn) {
-    std::string text = "fn @" + fn.name() + " {\n";
-    for (const ir::BasicBlock& block : fn.blocks()) {
-        text += "block_" + std::to_string(block.id()) + ":\n";
-        for (const ir::Instruction& instr : block.instrs()) {
-            text += "  " + instructionText(instr) + "\n";
-        }
-    }
-    text += "}\n";
-    return text;
+    IRDumpVisitor visitor;
+    visitor.visitFunction(fn);
+    return std::move(visitor.text());
 }
 
 } // namespace blast::core::utils
