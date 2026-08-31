@@ -201,9 +201,22 @@ void render(const ASTNode* node, const std::string& prefix, std::string& out) {
 // --- IR rendering --------------------------------------------------------
 const char* opcodeName(ir::Opcode op) {
     switch (op) {
-#define BLAST_IR_OPCODE_CASE(name) case ir::Opcode::name: return #name;
-        BLAST_IR_OPCODES(BLAST_IR_OPCODE_CASE)
-#undef BLAST_IR_OPCODE_CASE
+        case ir::Opcode::ADD:  return "ADD";
+        case ir::Opcode::SUB:  return "SUB";
+        case ir::Opcode::MUL:  return "MUL";
+        case ir::Opcode::DIV:  return "DIV";
+        case ir::Opcode::NEG:  return "NEG";
+        case ir::Opcode::LT:   return "LT";
+        case ir::Opcode::LE:   return "LE";
+        case ir::Opcode::GT:   return "GT";
+        case ir::Opcode::GE:   return "GE";
+        case ir::Opcode::EQ:   return "EQ";
+        case ir::Opcode::NE:   return "NE";
+        case ir::Opcode::COPY: return "COPY";
+        case ir::Opcode::CALL: return "CALL";
+        case ir::Opcode::BR:   return "BR";
+        case ir::Opcode::CBR:  return "CBR";
+        case ir::Opcode::RET:  return "RET";
     }
     return "?";
 }

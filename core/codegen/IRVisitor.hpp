@@ -38,26 +38,46 @@ public:
         return self().visitEmpty();
     }
 
-    // Per-opcode hooks, generated from the same list as the enum so a new
-    // opcode cannot be added without one. Each falls back to visitOpcode.
-#define BLAST_IR_VISITOR_HOOK(name)                                     \
-    R visit##name(const ir::Instruction& instr) {                       \
-        return self().visitOpcode(instr);                               \
-    }
-    BLAST_IR_OPCODES(BLAST_IR_VISITOR_HOOK)
-#undef BLAST_IR_VISITOR_HOOK
+    // Per-opcode hooks, each falling back to visitOpcode.
+    R visitADD(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitSUB(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitMUL(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitDIV(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitNEG(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitLT(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitLE(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitGT(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitGE(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitEQ(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitNE(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitCOPY(const ir::Instruction& instr) { return self().visitOpcode(instr); }
+    R visitCALL(const ir::Instruction& instr) { return self().visitOpcode(instr); }
+    R visitBR(const ir::Instruction& instr)   { return self().visitOpcode(instr); }
+    R visitCBR(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
+    R visitRET(const ir::Instruction& instr)  { return self().visitOpcode(instr); }
 
     R visitOpcode(const ir::Instruction&) { return self().visitEmpty(); }
 
     // Override this instead of the hooks to handle every instruction alike.
     R visitInstruction(const ir::Instruction& instr) {
         switch (instr.op()) {
-#define BLAST_IR_VISITOR_CASE(name)                                     \
-        case ir::Opcode::name: return self().visit##name(instr);
-            BLAST_IR_OPCODES(BLAST_IR_VISITOR_CASE)
-#undef BLAST_IR_VISITOR_CASE
+            case ir::Opcode::ADD:  return self().visitADD(instr);
+            case ir::Opcode::SUB:  return self().visitSUB(instr);
+            case ir::Opcode::MUL:  return self().visitMUL(instr);
+            case ir::Opcode::DIV:  return self().visitDIV(instr);
+            case ir::Opcode::NEG:  return self().visitNEG(instr);
+            case ir::Opcode::LT:   return self().visitLT(instr);
+            case ir::Opcode::LE:   return self().visitLE(instr);
+            case ir::Opcode::GT:   return self().visitGT(instr);
+            case ir::Opcode::GE:   return self().visitGE(instr);
+            case ir::Opcode::EQ:   return self().visitEQ(instr);
+            case ir::Opcode::NE:   return self().visitNE(instr);
+            case ir::Opcode::COPY: return self().visitCOPY(instr);
+            case ir::Opcode::CALL: return self().visitCALL(instr);
+            case ir::Opcode::BR:   return self().visitBR(instr);
+            case ir::Opcode::CBR:  return self().visitCBR(instr);
+            case ir::Opcode::RET:  return self().visitRET(instr);
         }
-        // Only reachable if an Opcode was added outside BLAST_IR_OPCODES.
         return self().visitEmpty();
     }
 
@@ -66,3 +86,10 @@ private:
 };
 
 } // namespace blast::core::codegen
+
+
+/*
+Under SSA, each value has exactly one definition, so its live range is a connected subtree of the dominator tree.
+Two such ranges interfere only if one's definition dominates the other's — which makes the interference graph chordal, and chordal graphs are colorable greedily in polynomial time with exactly ω colors, ω being the max clique = max register pressure at any program point. 
+So there's no backtracking and no iterate-and-rebuild loop: once you've spilled enough to get pressure ≤ k everywhere, coloring cannot fail.
+*/

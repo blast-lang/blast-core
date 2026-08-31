@@ -1,5 +1,6 @@
 add_library(codegen STATIC
     IRVisitor.hpp IRVisitor.cpp
+    MachineIR.hpp MachineIR.cpp
 )
 
 set_target_properties(codegen PROPERTIES

@@ -85,25 +85,16 @@ inline Operand INT_LIT(std::int64_t v) {
 }
 
 
-// The single list every opcode-keyed table is generated from, so a new opcode
-// cannot be added to one and forgotten in another. Order is load-bearing:
-// isComparison() and isTerminator() below are range checks over it.
-#define BLAST_IR_OPCODES(X)                     \
-    /* Arithmetic: result = lhs op rhs */       \
-    X(ADD) X(SUB) X(MUL) X(DIV)                 \
-    X(NEG)  /* unary '-' */                     \
-    /* Comparisons: LT .. NE */                 \
-    X(LT) X(LE) X(GT) X(GE) X(EQ) X(NE)         \
-    X(COPY) X(CALL)                             \
-    /* Terminators: BR .. end */                \
-    X(BR) X(CBR) X(RET)                         \
-    /* Addressing */                             \
-    X(LOAD)
-
+// Order is load-bearing: isComparison() and isTerminator() are range checks.
 enum class Opcode: std::uint8_t {
-#define BLAST_IR_OPCODE_ENUMERATOR(name) name,
-    BLAST_IR_OPCODES(BLAST_IR_OPCODE_ENUMERATOR)
-#undef BLAST_IR_OPCODE_ENUMERATOR
+    // Arithmetic: result = lhs op rhs
+    ADD, SUB, MUL, DIV,
+    NEG,  // unary '-'
+    // Comparisons: LT .. NE
+    LT, LE, GT, GE, EQ, NE,
+    COPY, CALL,
+    // Terminators: BR .. end
+    BR, CBR, RET,
 };
 
 constexpr bool isTerminator(Opcode op) {
@@ -112,6 +103,10 @@ constexpr bool isTerminator(Opcode op) {
 
 constexpr bool isComparison(Opcode op) {
     return op >= Opcode::LT && op <= Opcode::NE;
+}
+
+constexpr bool definesValue(Opcode op) {
+    return !isTerminator(op);
 }
 
 class Instruction {
@@ -160,11 +155,11 @@ public:
     std::vector<BlockId>& preds() { return this->m_preds; }
     const std::vector<BlockId>& preds() const { return this->m_preds; }
 
-    // vid is minted by the owning Function: value ids are unique per function,
-    // not per block. Prefer Function::addInstruction over calling this.
-    Operand addInstruction(ValueId vid, Operand lhs, Operand rhs, Opcode op) {
-        this->m_instrs.push_back(Instruction(REGISTER(vid), lhs, rhs, op));
-        return REGISTER(vid);
+    // result is minted by the owning Function: value ids are unique per
+    // function, not per block. Prefer Function::addInstruction over this.
+    Operand addInstruction(Operand result, Operand lhs, Operand rhs, Opcode op) {
+        this->m_instrs.push_back(Instruction(result, lhs, rhs, op));
+        return result;
     }
 };
 
@@ -209,7 +204,8 @@ public:
     ValueId newValue() { return this->m_next_value++; }
 
     Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op) {
-        return this->getBlock(bid).addInstruction(this->newValue(), lhs, rhs, op);
+        const Operand result = definesValue(op) ? REGISTER(this->newValue()) : NONE();
+        return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
     }
 };
 

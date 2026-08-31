@@ -69,17 +69,22 @@ Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
     return this->visit(node.expr());
 }
 
+// The unit's value is its last statement's, so blast_main has something to
+// return until real functions exist.
 Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
+    Operand last = NONE();
     for (const auto& stmt : node.stmts()) {
-        this->visit(stmt.get());
+        last = this->visit(stmt.get());
     }
-    
-    // A translation unit is not an expression: it has no value.
-    return NONE();
+    return last;
 }
 
 Function SSAIR::run(const parser::TranslationUnit& unit) {
-    this->visit(&unit);
+    Operand last = this->visit(&unit);
+    if (last.m_kind == Operand::Kind::NONE) {
+        last = INT_LIT(0);
+    }
+    this->addInstruction(last, NONE(), Opcode::RET);
     return this->currentFct();
 }
 
