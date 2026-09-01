@@ -1,5 +1,5 @@
 #include <core/utils/Dump.hpp>
-#include <core/codegen/IRVisitor.hpp>
+#include <core/ir/IR.hpp>
 #include <core/parser/AstVisitor.hpp>
 #include <memory>
 #include <utility>
@@ -221,12 +221,29 @@ const char* opcodeName(ir::Opcode op) {
     return "?";
 }
 
+const char* typeName(ir::Type t) {
+    switch (t) {
+        case ir::Type::I1:   return "i1";
+        case ir::Type::I8:   return "i8";
+        case ir::Type::I16:  return "i16";
+        case ir::Type::I32:  return "i32";
+        case ir::Type::I64:  return "i64";
+        case ir::Type::F32:  return "f32";
+        case ir::Type::F64:  return "f64";
+        case ir::Type::PTR:  return "ptr";
+        case ir::Type::VOID: return "void";
+    }
+    return "?";
+}
+
+// Blocks are labels, not values: they carry no type worth printing.
 std::string operandText(const ir::Operand& op) {
+    const std::string type = std::string(typeName(op.m_type)) + " ";
     switch (op.m_kind) {
         case ir::Operand::Kind::NONE:     return "";
         case ir::Operand::Kind::BLOCK:    return "block_" + std::to_string(op.m_block);
-        case ir::Operand::Kind::REGISTER: return "%" + std::to_string(op.m_value);
-        case ir::Operand::Kind::LITERAL:  return std::to_string(op.m_i64);
+        case ir::Operand::Kind::REGISTER: return type + "%" + std::to_string(op.m_value);
+        case ir::Operand::Kind::LITERAL:  return type + std::to_string(op.m_i64);
     }
     return "?";
 }
@@ -253,32 +270,6 @@ std::string instructionText(const ir::Instruction& instr) {
     return text;
 }
 
-// Each level frames its children and delegates the descent to the base.
-class IRDumpVisitor: public codegen::IRVisitor<IRDumpVisitor> {
-    using Base = codegen::IRVisitor<IRDumpVisitor>;
-
-public:
-    void visitFunction(const ir::Function& fn) {
-        this->m_text += "fn @" + fn.name() + " {\n";
-        this->Base::visitFunction(fn);
-        this->m_text += "}\n";
-    }
-
-    void visitBlock(const ir::BasicBlock& block) {
-        this->m_text += "block_" + std::to_string(block.id()) + ":\n";
-        this->Base::visitBlock(block);
-    }
-
-    void visitInstruction(const ir::Instruction& instr) {
-        this->m_text += "  " + instructionText(instr) + "\n";
-    }
-
-    std::string& text() { return this->m_text; }
-
-private:
-    std::string m_text;
-};
-
 } // namespace
 
 
@@ -303,9 +294,15 @@ std::string dumpTree(const ASTNode* node) {
 }
 
 std::string dump(const ir::Function& fn) {
-    IRDumpVisitor visitor;
-    visitor.visitFunction(fn);
-    return std::move(visitor.text());
+    std::string out = "fn @" + fn.name() + " {\n";
+    for (const ir::BasicBlock& block : fn.blocks()) {
+        out += "block_" + std::to_string(block.id()) + ":\n";
+        for (const ir::Instruction& instr : block.instrs()) {
+            out += "  " + instructionText(instr) + "\n";
+        }
+    }
+    out += "}\n";
+    return out;
 }
 
 } // namespace blast::core::utils

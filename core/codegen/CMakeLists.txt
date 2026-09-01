@@ -1,5 +1,4 @@
 add_library(codegen STATIC
-    IRVisitor.hpp IRVisitor.cpp
     MachineIR.hpp MachineIR.cpp
 )
 
@@ -13,7 +12,7 @@ target_include_directories(codegen PUBLIC
     $<INSTALL_INTERFACE:${blast_install_includedir}>
 )
 
-# IRVisitor.hpp walks ir's types, so the dependency is part of the interface.
+# MachineIR.hpp uses ir's types, so the dependency is part of the interface.
 target_link_libraries(codegen PUBLIC ir)
 
 install(
