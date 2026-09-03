@@ -243,7 +243,8 @@ std::string operandText(const ir::Operand& op) {
         case ir::Operand::Kind::NONE:     return "";
         case ir::Operand::Kind::BLOCK:    return "block_" + std::to_string(op.m_block);
         case ir::Operand::Kind::REGISTER: return type + "%" + std::to_string(op.m_value);
-        case ir::Operand::Kind::LITERAL:  return type + std::to_string(op.m_i64);
+        case ir::Operand::Kind::LITERAL:
+            return type + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
     }
     return "?";
 }
@@ -296,7 +297,7 @@ std::string dumpTree(const ASTNode* node) {
 std::string dump(const ir::Function& fn) {
     std::string out = "fn @" + fn.name() + " {\n";
     for (const ir::BasicBlock& block : fn.blocks()) {
-        out += "block_" + std::to_string(block.id()) + ":\n";
+        out += block.label() + ":\n";
         for (const ir::Instruction& instr : block.instrs()) {
             out += "  " + instructionText(instr) + "\n";
         }

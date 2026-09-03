@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <vector>
+#include <string>
 
 #include <core/ir/IR.hpp>
 
@@ -7,20 +9,22 @@
 namespace blast::core::codegen {
 
 
+using RegisterId = std::uint32_t;
+using MachineBlockId = std::uint32_t;
+
 class Register {
 public:
-    using RegId = std::uint32_t;
     enum class Class: std::uint8_t {
         INT,
         FLOAT,
     };
 public:
-    Register(RegId id, Class cls): m_id(id), m_class(cls) {}
-    RegId id() const { return this->m_id; }
+    Register(RegisterId id, Class cls): m_id(id), m_class(cls) {}
+    RegisterId id() const { return this->m_id; }
     Class cls() const { return this->m_class; }
 
 private:
-    RegId m_id;
+    RegisterId m_id;
     Class m_class;
 };
 
@@ -35,7 +39,7 @@ enum class Cond: std::uint8_t {
 };
 
 // Two-address code form
-enum class Opcode: std::uint8_t {
+enum class MachineOpcode: std::uint8_t {
     MOV,
     ADD, SUB, IMUL,
     CQO, IDIV,
@@ -53,6 +57,71 @@ enum class Opcode: std::uint8_t {
     // SHL, SAR, SHR,
     // MOVSD, ADDSD, SUBSD, MULSD, DIVSD,
     // UCOMISD, CVTSI2SD, CVTTSD2SI,
+};
+
+class MachineOperand {
+public:
+    enum class Kind: std::uint8_t {
+        // Virtual (not-yet-allocated) register
+        VREG,
+        // Proper allocated register
+        REG,
+        LABEL,
+        LITERAL
+    };
+
+public:
+    MachineOperand(const ir::Operand& op);
+
+public:
+    Kind kind() const { return this->m_kind; }
+    RegisterId registerId() const { return this->m_RegisterId; }
+
+private:
+    Kind m_kind;
+    union {
+        RegisterId m_RegisterId;
+    };
+};
+
+
+class MachineInstr {
+public:
+    MachineInstr(const ir::Instruction& intr);
+
+public:
+    MachineOpcode op() const { return this->m_op; }
+    const MachineOperand& lhs() const { return this->m_lhs; }
+    const MachineOperand& rhs() const { return this->m_rhs; }
+
+private:
+    MachineOpcode m_op;
+    MachineOperand m_lhs;
+    MachineOperand m_rhs;
+};
+
+class MachineBlock {
+public:
+    MachineBlock(const ir::BasicBlock& block);
+
+public:
+    MachineBlockId id() const { return this->m_id; }
+    const std::string& label() const { return this->m_label; }
+    const std::vector<MachineInstr>& instrs() const { return this->m_instrs; }
+    const std::vector<ir::BlockId>& preds() const { return this->m_preds; }
+    const std::vector<ir::BlockId>& succs() const { return this->m_succs; }
+
+private:
+    MachineBlockId m_id;
+    std::string m_label;
+    std::vector<MachineInstr> m_instrs;
+    std::vector<ir::BlockId> m_preds;
+    std::vector<ir::BlockId> m_succs;
+};
+
+class MachineIR {
+public:
+    MachineIR(const ir::Module& m);
 };
 
 } // namespace blast::core::codegen

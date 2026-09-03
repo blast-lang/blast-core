@@ -17,8 +17,8 @@ namespace blast::core::ir {
 
 
 using BlockId = uint32_t;
-using ValueId  = uint32_t;
-using FctId  = uint32_t;
+using ValueId = uint32_t;
+using FctId = uint32_t;
 
 enum class Type {
     I1,
@@ -26,6 +26,11 @@ enum class Type {
     I16,
     I32,
     I64,
+
+    UI8,
+    UI16,
+    UI32,
+    UI64,
 
     F32,
     F64,
@@ -42,6 +47,24 @@ inline bool isFloat(Type t) {
     return t >= Type::F32 && t <= Type::F64;
 }
 
+
+struct Lireral {
+    union {
+        bool m_i1;
+        std::int8_t m_i8;
+        std::int16_t m_i16;
+        std::int32_t m_i32;
+        std::int64_t m_i64;
+        std::uint8_t m_ui8;
+        std::uint16_t m_ui16;
+        std::uint32_t m_ui32;
+        std::uint64_t m_ui64;
+        float m_f32;
+        double m_f64;
+    };
+};
+
+
 // Labels: prefix '%' for local and '@' for global
 struct Operand {
     enum class Kind {
@@ -56,7 +79,7 @@ struct Operand {
     union {
         ValueId  m_value;   // REGISTER
         BlockId  m_block;   // BLOCK
-        int64_t  m_i64;     // LITERAL
+        Lireral  m_lit;     // LITERAL
     };
 };
 
@@ -64,7 +87,7 @@ inline Operand NONE() {
     return {
         .m_kind = Operand::Kind::NONE,
         .m_type = Type::VOID,
-        .m_i64 = 0
+        .m_lit = { .m_i64 = 0 }
     };
 }
 
@@ -76,11 +99,92 @@ inline Operand REGISTER(ValueId v) {
     };
 }
 
-inline Operand INT_LIT(std::int64_t v) {
+
+inline Operand LITERAL(bool v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::I1,
+        .m_lit = { .m_i1 = static_cast<bool>(v) }
+    };
+}
+
+inline Operand LITERAL(std::int8_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::I8,
+        .m_lit = { .m_i8 = v }
+    };
+}
+
+inline Operand LITERAL(std::int16_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::I16,
+        .m_lit = { .m_i16 = v }
+    };
+}
+
+inline Operand LITERAL(std::int32_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::I32,
+        .m_lit = { .m_i32 = v }
+    };
+}
+
+inline Operand LITERAL(std::int64_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
         .m_type = Type::I64,
-        .m_i64 = v
+        .m_lit = { .m_i64 = v }
+    };
+}
+
+inline Operand LITERAL(std::uint8_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::UI8,
+        .m_lit = { .m_ui8 = v }
+    };
+}
+
+inline Operand LITERAL(std::uint16_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::UI16,
+        .m_lit = { .m_ui16 = v }
+    };
+}
+
+inline Operand LITERAL(std::uint32_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::UI32,
+        .m_lit = { .m_ui32 = v }
+    };
+}
+
+inline Operand LITERAL(std::uint64_t v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::UI64,
+        .m_lit = { .m_ui64 = v }
+    };
+}
+
+inline Operand LITERAL(float v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::F32,
+        .m_lit = { .m_f32 = v }
+    };
+}
+
+inline Operand LITERAL(double v) {
+    return {
+        .m_kind = Operand::Kind::LITERAL,
+        .m_type = Type::F64,
+        .m_lit = { .m_f64 = v }
     };
 }
 
@@ -135,6 +239,7 @@ public:
 class BasicBlock {
 private:
     BlockId m_id;
+    std::string m_label;
     // Block inputs (entry block's are the fn args)
     std::vector<ValueId>     m_params;
     // Set of instructions in the block
@@ -143,8 +248,12 @@ private:
     std::vector<BlockId>     m_preds;
 
 public:
-    BasicBlock(BlockId id): m_id(id), m_params(), m_instrs(), m_preds() {}
+    BasicBlock(BlockId id, std::string label):
+        m_id(id), m_label(std::move(label)), m_params(), m_instrs(), m_preds()
+    {}
+
     BlockId id() const { return this->m_id; }
+    const std::string& label() const { return this->m_label; }
 
     std::vector<ValueId>& params() { return this->m_params; }
     const std::vector<ValueId>& params() const { return this->m_params; }
@@ -175,11 +284,11 @@ public:
     Function(FctId id, std::string name):
         m_id(id), m_name(name), m_blocks(), m_next_value(0)
     {
-        this->addBlock();
+        this->addBlock("header");
     }
 
-    void addBlock() {
-        BasicBlock b(this->m_blocks.size());
+    void addBlock(std::string label) {
+        BasicBlock b(this->m_blocks.size(), std::move(label));
         this->m_blocks.push_back(std::move(b));
     }
 

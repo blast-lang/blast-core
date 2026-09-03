@@ -15,7 +15,7 @@ Opcode opcodeFor(const std::string& op) {
 
 
 Operand SSAIR::visitIntLiteral(const parser::IntLiteral& node) {
-    return INT_LIT(node.value());
+    return LITERAL(node.value());
 }
 
 // Operand's LITERAL payload is an int64, so there is nowhere to put these yet.
@@ -51,7 +51,7 @@ Operand SSAIR::visitVarDecl(const parser::VarDecl& node) {
         reg = this->visit(node.init());
     } else {
         // Get default assign (0 for int)
-        reg = INT_LIT(0);
+        reg = LITERAL(std::int64_t{0});
     }
     // Register attributer register for variable
     this->setLKO(v, reg);
@@ -82,7 +82,7 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 Function SSAIR::run(const parser::TranslationUnit& unit) {
     Operand last = this->visit(&unit);
     if (last.m_kind == Operand::Kind::NONE) {
-        last = INT_LIT(0);
+        last = LITERAL(std::int64_t{0});
     }
     this->addInstruction(last, NONE(), Opcode::RET);
     return this->currentFct();
