@@ -79,13 +79,13 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
     return last;
 }
 
-Function SSAIR::run(const parser::TranslationUnit& unit) {
+const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     Operand last = this->visit(&unit);
     if (last.m_kind == Operand::Kind::NONE) {
         last = LITERAL(std::int64_t{0});
     }
     this->addInstruction(last, NONE(), Opcode::RET);
-    return this->currentFct();
+    return this->m_main;
 }
 
 } // namespace blast::core::ir

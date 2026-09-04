@@ -271,6 +271,65 @@ std::string instructionText(const ir::Instruction& instr) {
     return text;
 }
 
+const char* opcodeName(codegen::MachineOpcode op) {
+    switch (op) {
+        case codegen::MachineOpcode::MOV:      return "MOV";
+        case codegen::MachineOpcode::ADD:      return "ADD";
+        case codegen::MachineOpcode::SUB:      return "SUB";
+        case codegen::MachineOpcode::IMUL:     return "IMUL";
+        case codegen::MachineOpcode::CQO:      return "CQO";
+        case codegen::MachineOpcode::IDIV:     return "IDIV";
+        case codegen::MachineOpcode::NEG:      return "NEG";
+        case codegen::MachineOpcode::CMP:      return "CMP";
+        case codegen::MachineOpcode::SETCC:    return "SETCC";
+        case codegen::MachineOpcode::JMP:      return "JMP";
+        case codegen::MachineOpcode::JCC:      return "JCC";
+        case codegen::MachineOpcode::CALL:     return "CALL";
+        case codegen::MachineOpcode::RET:      return "RET";
+        case codegen::MachineOpcode::PROLOGUE: return "PROLOGUE";
+        case codegen::MachineOpcode::EPILOGUE: return "EPILOGUE";
+    }
+    return "?";
+}
+
+const char* widthName(codegen::Width w) {
+    switch (w) {
+        case codegen::Width::W8:  return "8";
+        case codegen::Width::W16: return "16";
+        case codegen::Width::W32: return "32";
+        case codegen::Width::W64: return "64";
+    }
+    return "?";
+}
+
+// Virtual registers keep the IR's '%', allocated ones take '$'.
+std::string operandText(const codegen::MachineOperand& op) {
+    switch (op.kind()) {
+        case codegen::MachineOperand::Kind::NONE:    return "";
+        case codegen::MachineOperand::Kind::VREG:    return "%" + std::to_string(op.registerId());
+        case codegen::MachineOperand::Kind::REG:     return "$" + std::to_string(op.registerId());
+        case codegen::MachineOperand::Kind::LABEL:   return "block_" + std::to_string(op.blockId());
+        case codegen::MachineOperand::Kind::LITERAL:
+            return std::to_string(static_cast<std::int64_t>(op.literal().m_i64));
+    }
+    return "?";
+}
+
+// "ADD.64 %0, 2" -- two-address form, so the destination is just the first
+// operand, and an operand left NONE is not printed.
+std::string instructionText(const codegen::MachineInstr& instr) {
+    std::string text = std::string(opcodeName(instr.op())) + "." + widthName(instr.width());
+    bool has_operand = false;
+    if (instr.lhs().kind() != codegen::MachineOperand::Kind::NONE) {
+        text += " " + operandText(instr.lhs());
+        has_operand = true;
+    }
+    if (instr.rhs().kind() != codegen::MachineOperand::Kind::NONE) {
+        text += (has_operand ? ", " : " ") + operandText(instr.rhs());
+    }
+    return text;
+}
+
 } // namespace
 
 
@@ -303,6 +362,25 @@ std::string dump(const ir::Function& fn) {
         }
     }
     out += "}\n";
+    return out;
+}
+
+std::string dump(const ir::Module& m) {
+    std::string out;
+    for (const ir::Function& fn : m.fcts()) {
+        out += dump(fn);
+    }
+    return out;
+}
+
+std::string dump(const codegen::MachineIR& mir) {
+    std::string out;
+    for (const codegen::MachineBlock& block : mir.blocks()) {
+        out += block.label() + ":\n";
+        for (const codegen::MachineInstr& instr : block.instrs()) {
+            out += "  " + instructionText(instr) + "\n";
+        }
+    }
     return out;
 }
 

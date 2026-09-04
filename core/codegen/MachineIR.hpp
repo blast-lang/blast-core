@@ -30,7 +30,7 @@ private:
 
 // One width while aliasing is out of scope: every value occupies a full GPR.
 enum class Width: std::uint8_t {
-    // W8, W16, W32,
+    W8, W16, W32,
     W64,
 };
 
@@ -62,6 +62,7 @@ enum class MachineOpcode: std::uint8_t {
 class MachineOperand {
 public:
     enum class Kind: std::uint8_t {
+        NONE,
         // Virtual (not-yet-allocated) register
         VREG,
         // Proper allocated register
@@ -75,12 +76,16 @@ public:
 
 public:
     Kind kind() const { return this->m_kind; }
-    RegisterId registerId() const { return this->m_RegisterId; }
+    RegisterId registerId() const { return this->m_value; }
+    MachineBlockId blockId() const { return this->m_block; }
+    const ir::Lireral& literal() const { return this->m_lit; }
 
 private:
     Kind m_kind;
     union {
-        RegisterId m_RegisterId;
+        RegisterId  m_value;   // REGISTER
+        MachineBlockId  m_block;   // BLOCK
+        ir::Lireral  m_lit;     // LITERAL
     };
 };
 
@@ -91,11 +96,13 @@ public:
 
 public:
     MachineOpcode op() const { return this->m_op; }
+    Width width() const { return this->m_width; }
     const MachineOperand& lhs() const { return this->m_lhs; }
     const MachineOperand& rhs() const { return this->m_rhs; }
 
 private:
     MachineOpcode m_op;
+    Width m_width;
     MachineOperand m_lhs;
     MachineOperand m_rhs;
 };
@@ -122,6 +129,12 @@ private:
 class MachineIR {
 public:
     MachineIR(const ir::Module& m);
+
+public:
+    const std::vector<MachineBlock>& blocks() const { return this->m_blocks; }
+
+private:
+    std::vector<MachineBlock> m_blocks;
 };
 
 } // namespace blast::core::codegen

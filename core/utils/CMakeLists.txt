@@ -12,9 +12,9 @@ target_include_directories(utils PUBLIC
     $<INSTALL_INTERFACE:${blast_install_includedir}>
 )
 
-# Dump.hpp names lexer, parser and ir types in its signatures, so every stage it
-# renders is part of the interface. Nothing may depend on utils in return.
-target_link_libraries(utils PUBLIC lexer parser ir)
+# Dump.hpp names lexer, parser, ir and codegen types in its signatures, so every
+# stage it renders is part of the interface. Nothing may depend on utils in return.
+target_link_libraries(utils PUBLIC lexer parser ir codegen)
 
 install(
     TARGETS utils

@@ -1,4 +1,5 @@
 #pragma once
+#include <core/codegen/MachineIR.hpp>
 #include <core/ir/IR.hpp>
 #include <core/lexer/Lexer.hpp>
 #include <core/parser/Ast.hpp>
@@ -20,5 +21,11 @@ std::string dumpTree(const parser::ASTNode* node);
 
 // A function as its blocks and instructions: "%0 = ADD %1, 2".
 std::string dump(const ir::Function& fn);
+
+// Every function in the module, in declaration order.
+std::string dump(const ir::Module& m);
+
+// Two-address machine code, width on the mnemonic: "ADD.64 %0, 2".
+std::string dump(const codegen::MachineIR& mir);
 
 } // namespace blast::core::utils

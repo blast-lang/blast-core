@@ -352,7 +352,7 @@ struct SymbolBlockHash {
 // Translate AST to TAC
 class SSAIR: public parser::AstVisitor<SSAIR, Operand> {
 public:
-    Function run(const parser::TranslationUnit& unit);
+    const Module& run(const parser::TranslationUnit& unit);
 
     Operand visitIntLiteral(const parser::IntLiteral& node);
     Operand visitFloatLiteral(const parser::FloatLiteral& node);
