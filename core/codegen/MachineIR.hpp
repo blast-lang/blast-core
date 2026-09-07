@@ -42,7 +42,7 @@ enum class Cond: std::uint8_t {
 enum class MachineOpcode: std::uint8_t {
     MOV,
     ADD, SUB, IMUL,
-    CQO, IDIV,
+    CQO, DIV, IDIV,
     NEG,
     CMP, SETCC,
     JMP, JCC, CALL, RET,
@@ -92,7 +92,8 @@ private:
 
 class MachineInstr {
 public:
-    MachineInstr(const ir::Instruction& intr);
+    MachineInstr(MachineOpcode op, Width w, MachineOperand lhs, MachineOperand rhs)
+        : m_op(op), m_width(w), m_lhs(lhs), m_rhs(rhs) {}
 
 public:
     MachineOpcode op() const { return this->m_op; }
@@ -109,7 +110,7 @@ private:
 
 class MachineBlock {
 public:
-    MachineBlock(const ir::BasicBlock& block);
+    MachineBlock(MachineBlockId id, std::string label): m_id(id), m_label(label), m_instrs(), m_preds(), m_succs() {}
 
 public:
     MachineBlockId id() const { return this->m_id; }
@@ -118,6 +119,7 @@ public:
     const std::vector<ir::BlockId>& preds() const { return this->m_preds; }
     const std::vector<ir::BlockId>& succs() const { return this->m_succs; }
 
+    void addInstruction(const ir::Instruction& i);
 private:
     MachineBlockId m_id;
     std::string m_label;
@@ -132,6 +134,7 @@ public:
 
 public:
     const std::vector<MachineBlock>& blocks() const { return this->m_blocks; }
+    void addBlock(const ir::BasicBlock& b);
 
 private:
     std::vector<MachineBlock> m_blocks;
