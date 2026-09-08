@@ -91,10 +91,10 @@ inline Operand NONE() {
     };
 }
 
-inline Operand REGISTER(ValueId v) {
+inline Operand REGISTER(ValueId v, Type t = Type::I64) {
     return {
         .m_kind = Operand::Kind::REGISTER,
-        .m_type = Type::I64,
+        .m_type = t,
         .m_value = v
     };
 }
@@ -241,7 +241,7 @@ private:
     BlockId m_id;
     std::string m_label;
     // Block inputs (entry block's are the fn args)
-    std::vector<ValueId>     m_params;
+    std::vector<Operand>     m_params;
     // Set of instructions in the block
     std::vector<Instruction> m_instrs;
     // Block parents to get Control flow Graph structure
@@ -255,8 +255,8 @@ public:
     BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
 
-    std::vector<ValueId>& params() { return this->m_params; }
-    const std::vector<ValueId>& params() const { return this->m_params; }
+    std::vector<Operand>& params() { return this->m_params; }
+    const std::vector<Operand>& params() const { return this->m_params; }
 
     std::vector<Instruction>& instrs() { return this->m_instrs; }
     const std::vector<Instruction>& instrs() const { return this->m_instrs; }
@@ -278,13 +278,15 @@ private:
     // Assembly-compatible Mangled Name
     std::string m_name;
     std::vector<BasicBlock> m_blocks;   // block 0 is the entry
+    // Return types, empty means void
+    std::vector<Type> m_rets;
     ValueId m_next_value;
 
 public:
-    Function(FctId id, std::string name):
-        m_id(id), m_name(name), m_blocks(), m_next_value(0)
+    Function(FctId id, std::string name, std::vector<Type> rets = {}):
+        m_id(id), m_name(name), m_blocks(), m_rets(std::move(rets)), m_next_value(0)
     {
-        this->addBlock("header");
+        this->addBlock("body");
     }
 
     void addBlock(std::string label) {
@@ -297,6 +299,12 @@ public:
 
     std::vector<BasicBlock>& blocks() { return this->m_blocks; }
     const std::vector<BasicBlock>& blocks() const { return this->m_blocks; }
+
+    std::vector<Type>& rets() { return this->m_rets; }
+    const std::vector<Type>& rets() const { return this->m_rets; }
+
+    // Entry block params are the function arguments
+    const std::vector<Operand>& params() const { return this->m_blocks[0].params(); }
 
     const BasicBlock& getBlock(BlockId bid) const {
         if (bid >= this->m_blocks.size())
@@ -312,6 +320,12 @@ public:
 
     ValueId newValue() { return this->m_next_value++; }
 
+    Operand addParam(BlockId bid, Type t) {
+        const Operand p = REGISTER(this->newValue(), t);
+        this->getBlock(bid).params().push_back(p);
+        return p;
+    }
+
     Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op) {
         const Operand result = definesValue(op) ? REGISTER(this->newValue()) : NONE();
         return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
@@ -323,11 +337,10 @@ private:
     std::vector<Function> m_fcts;
 
 public:
-
     Module() = default;
 
-    void addFct(std::string name) {
-        this->m_fcts.push_back(Function(this->m_fcts.size(), name));
+    void addFct(std::string name, std::vector<Type> rets = {}) {
+        this->m_fcts.push_back(Function(this->m_fcts.size(), name, std::move(rets)));
     }
 
     std::vector<Function>& fcts() { return this->m_fcts; }

@@ -4,7 +4,6 @@
 #include <core/context/ASTContext.hpp>
 #include <core/context/Resolver.hpp>
 #include <core/ir/IR.hpp>
-#include <core/codegen/MachineIR.hpp>
 #include <core/utils/Dump.hpp>
 #include <core/Exception.hpp>
 #include <cstdio>
@@ -67,10 +66,6 @@ int main(int argc, char* argv[]) {
         const auto& module = lowerer.run(*parser.root());
         std::puts("--- IR ---");
         std::printf("%s", blast::core::utils::dump(module).c_str());
-
-        blast::core::codegen::MachineIR mir(module);
-        std::puts("--- Machine IR ---");
-        std::printf("%s", blast::core::utils::dump(mir).c_str());
     } catch (const blast::core::CodegenError& e) {
         std::fprintf(stderr, "blastc: %s\n", e.what());
         return 1;
