@@ -221,24 +221,20 @@ const char* opcodeName(ir::Opcode op) {
     return "?";
 }
 
-const char* typeName(ir::Type t) {
-    switch (t) {
-        case ir::Type::I1:   return "i1";
-        case ir::Type::I8:   return "i8";
-        case ir::Type::I16:  return "i16";
-        case ir::Type::I32:  return "i32";
-        case ir::Type::I64:  return "i64";
-        case ir::Type::F32:  return "f32";
-        case ir::Type::F64:  return "f64";
-        case ir::Type::PTR:  return "ptr";
-        case ir::Type::VOID: return "void";
+std::string typeName(ir::Type t) {
+    switch (t.m_kind) {
+        case ir::Type::Kind::INT:   return "i" + std::to_string(ir::bits(t));
+        case ir::Type::Kind::UINT:  return "u" + std::to_string(ir::bits(t));
+        case ir::Type::Kind::FLOAT: return "f" + std::to_string(ir::bits(t));
+        case ir::Type::Kind::PTR:   return "ptr";
+        case ir::Type::Kind::VOID:  return "void";
     }
     return "?";
 }
 
 // Blocks are labels, not values: they carry no type worth printing.
 std::string operandText(const ir::Operand& op) {
-    const std::string type = std::string(typeName(op.m_type)) + " ";
+    const std::string type = typeName(op.m_type) + " ";
     switch (op.m_kind) {
         case ir::Operand::Kind::NONE:     return "";
         case ir::Operand::Kind::BLOCK:    return "block_" + std::to_string(op.m_block);
@@ -295,7 +291,14 @@ std::string dumpTree(const ASTNode* node) {
 }
 
 std::string dump(const ir::Function& fn) {
-    std::string out = "fn @" + fn.name() + " {\n";
+    std::string out = "fn @" + fn.name() + "(";
+    for (std::size_t i = 0; i < fn.args().size(); ++i) {
+        if (i > 0) {
+            out += ", ";
+        }
+        out += operandText(fn.args()[i]);
+    }
+    out += ") -> " + typeName(fn.ret()) + " {\n";
     for (const ir::BasicBlock& block : fn.blocks()) {
         out += block.label() + ":\n";
         for (const ir::Instruction& instr : block.instrs()) {

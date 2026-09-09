@@ -69,8 +69,6 @@ Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
     return this->visit(node.expr());
 }
 
-// The unit's value is its last statement's, so blast_main has something to
-// return until real functions exist.
 Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
     Operand last = NONE();
     for (const auto& stmt : node.stmts()) {
@@ -80,11 +78,8 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 }
 
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
-    Operand last = this->visit(&unit);
-    if (last.m_kind == Operand::Kind::NONE) {
-        last = LITERAL(std::int64_t{0});
-    }
-    this->addInstruction(last, NONE(), Opcode::RET);
+    this->visit(&unit);
+    this->addInstruction(NONE(), NONE(), Opcode::RET);
     return this->m_main;
 }
 

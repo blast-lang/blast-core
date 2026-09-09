@@ -15,38 +15,82 @@
 // SSA (Static Single Assignment) Form
 namespace blast::core::ir {
 
-
 using BlockId = uint32_t;
 using ValueId = uint32_t;
 using FctId = uint32_t;
 
-enum class Type {
-    I1,
-    I8,
-    I16,
-    I32,
-    I64,
+struct Type {
+    enum class Kind : std::uint8_t {
+        INT,
+        UINT,
+        FLOAT,
+        PTR,
+        VOID
+    };
 
-    UI8,
-    UI16,
-    UI32,
-    UI64,
+    enum class Width : std::uint8_t {
+        W1,
+        W8,
+        W16,
+        W32,
+        W64,
+        W128
+    };
 
-    F32,
-    F64,
+    Kind  m_kind;
+    Width m_width;
 
-    PTR,
-    VOID
+    constexpr bool operator==(const Type&) const = default;
 };
 
-inline bool isInt(Type t) {
-    return t >= Type::I1 && t <= Type::I64;
+constexpr unsigned bits(Type::Width w) {
+    switch (w) {
+        case Type::Width::W1:   return 1;
+        case Type::Width::W8:   return 8;
+        case Type::Width::W16:  return 16;
+        case Type::Width::W32:  return 32;
+        case Type::Width::W64:  return 64;
+        case Type::Width::W128: return 128;
+    }
+    return 0;
 }
 
-inline bool isFloat(Type t) {
-    return t >= Type::F32 && t <= Type::F64;
+constexpr unsigned bits(Type t) {
+    return bits(t.m_width);
 }
 
+constexpr Type INT(Type::Width w) {
+    return { Type::Kind::INT, w };
+}
+
+constexpr Type UINT(Type::Width w) {
+    return { Type::Kind::UINT, w };
+}
+
+constexpr Type FLOAT(Type::Width w) {
+    return { Type::Kind::FLOAT, w };
+}
+
+constexpr Type PTR() {
+    return { Type::Kind::PTR, Type::Width::W64 };
+}
+
+// Width is meaningless here, but keeping the pair total avoids a third state.
+constexpr Type VOID() {
+    return { Type::Kind::VOID, Type::Width::W1 };
+}
+
+constexpr bool isInt(Type t) {
+    return t.m_kind == Type::Kind::INT || t.m_kind == Type::Kind::UINT;
+}
+
+constexpr bool isSigned(Type t) {
+    return t.m_kind == Type::Kind::INT;
+}
+
+constexpr bool isFloat(Type t) {
+    return t.m_kind == Type::Kind::FLOAT;
+}
 
 struct Lireral {
     union {
@@ -86,12 +130,12 @@ struct Operand {
 inline Operand NONE() {
     return {
         .m_kind = Operand::Kind::NONE,
-        .m_type = Type::VOID,
+        .m_type = VOID(),
         .m_lit = { .m_i64 = 0 }
     };
 }
 
-inline Operand REGISTER(ValueId v, Type t = Type::I64) {
+inline Operand REGISTER(ValueId v, Type t = INT(Type::Width::W64)) {
     return {
         .m_kind = Operand::Kind::REGISTER,
         .m_type = t,
@@ -103,7 +147,7 @@ inline Operand REGISTER(ValueId v, Type t = Type::I64) {
 inline Operand LITERAL(bool v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::I1,
+        .m_type = INT(Type::Width::W1),
         .m_lit = { .m_i1 = static_cast<bool>(v) }
     };
 }
@@ -111,7 +155,7 @@ inline Operand LITERAL(bool v) {
 inline Operand LITERAL(std::int8_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::I8,
+        .m_type = INT(Type::Width::W8),
         .m_lit = { .m_i8 = v }
     };
 }
@@ -119,7 +163,7 @@ inline Operand LITERAL(std::int8_t v) {
 inline Operand LITERAL(std::int16_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::I16,
+        .m_type = INT(Type::Width::W16),
         .m_lit = { .m_i16 = v }
     };
 }
@@ -127,7 +171,7 @@ inline Operand LITERAL(std::int16_t v) {
 inline Operand LITERAL(std::int32_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::I32,
+        .m_type = INT(Type::Width::W32),
         .m_lit = { .m_i32 = v }
     };
 }
@@ -135,7 +179,7 @@ inline Operand LITERAL(std::int32_t v) {
 inline Operand LITERAL(std::int64_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::I64,
+        .m_type = INT(Type::Width::W64),
         .m_lit = { .m_i64 = v }
     };
 }
@@ -143,7 +187,7 @@ inline Operand LITERAL(std::int64_t v) {
 inline Operand LITERAL(std::uint8_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::UI8,
+        .m_type = UINT(Type::Width::W8),
         .m_lit = { .m_ui8 = v }
     };
 }
@@ -151,7 +195,7 @@ inline Operand LITERAL(std::uint8_t v) {
 inline Operand LITERAL(std::uint16_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::UI16,
+        .m_type = UINT(Type::Width::W16),
         .m_lit = { .m_ui16 = v }
     };
 }
@@ -159,7 +203,7 @@ inline Operand LITERAL(std::uint16_t v) {
 inline Operand LITERAL(std::uint32_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::UI32,
+        .m_type = UINT(Type::Width::W32),
         .m_lit = { .m_ui32 = v }
     };
 }
@@ -167,7 +211,7 @@ inline Operand LITERAL(std::uint32_t v) {
 inline Operand LITERAL(std::uint64_t v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::UI64,
+        .m_type = UINT(Type::Width::W64),
         .m_lit = { .m_ui64 = v }
     };
 }
@@ -175,7 +219,7 @@ inline Operand LITERAL(std::uint64_t v) {
 inline Operand LITERAL(float v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::F32,
+        .m_type = FLOAT(Type::Width::W32),
         .m_lit = { .m_f32 = v }
     };
 }
@@ -183,7 +227,7 @@ inline Operand LITERAL(float v) {
 inline Operand LITERAL(double v) {
     return {
         .m_kind = Operand::Kind::LITERAL,
-        .m_type = Type::F64,
+        .m_type = FLOAT(Type::Width::W64),
         .m_lit = { .m_f64 = v }
     };
 }
@@ -236,12 +280,17 @@ public:
     void setComment(std::string comment) { this->m_comment = std::move(comment); }
 };
 
+struct Phi {
+    Operand m_result;
+    std::vector<std::pair<BlockId, Operand>> m_incomings;
+};
+
 class BasicBlock {
 private:
     BlockId m_id;
     std::string m_label;
-    // Block inputs (entry block's are the fn args)
-    std::vector<Operand>     m_params;
+    // Block inputs, one per value live across an incoming edge
+    std::vector<Phi>         m_phis;
     // Set of instructions in the block
     std::vector<Instruction> m_instrs;
     // Block parents to get Control flow Graph structure
@@ -249,14 +298,14 @@ private:
 
 public:
     BasicBlock(BlockId id, std::string label):
-        m_id(id), m_label(std::move(label)), m_params(), m_instrs(), m_preds()
+        m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds()
     {}
 
     BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
 
-    std::vector<Operand>& params() { return this->m_params; }
-    const std::vector<Operand>& params() const { return this->m_params; }
+    std::vector<Phi>& phis() { return this->m_phis; }
+    const std::vector<Phi>& phis() const { return this->m_phis; }
 
     std::vector<Instruction>& instrs() { return this->m_instrs; }
     const std::vector<Instruction>& instrs() const { return this->m_instrs; }
@@ -278,15 +327,16 @@ private:
     // Assembly-compatible Mangled Name
     std::string m_name;
     std::vector<BasicBlock> m_blocks;   // block 0 is the entry
-    // Return types, empty means void
-    std::vector<Type> m_rets;
+    // Function arguments, live on entry
+    std::vector<Operand> m_args;
+    Type m_ret;
     ValueId m_next_value;
 
 public:
-    Function(FctId id, std::string name, std::vector<Type> rets = {}):
-        m_id(id), m_name(name), m_blocks(), m_rets(std::move(rets)), m_next_value(0)
+    Function(FctId id, std::string name, Type ret = VOID()):
+        m_id(id), m_name(name), m_blocks(), m_args(), m_ret(ret), m_next_value(0)
     {
-        this->addBlock("body");
+        this->addBlock("entry");
     }
 
     void addBlock(std::string label) {
@@ -300,11 +350,11 @@ public:
     std::vector<BasicBlock>& blocks() { return this->m_blocks; }
     const std::vector<BasicBlock>& blocks() const { return this->m_blocks; }
 
-    std::vector<Type>& rets() { return this->m_rets; }
-    const std::vector<Type>& rets() const { return this->m_rets; }
+    Type ret() const { return this->m_ret; }
+    void setRet(Type t) { this->m_ret = t; }
 
-    // Entry block params are the function arguments
-    const std::vector<Operand>& params() const { return this->m_blocks[0].params(); }
+    std::vector<Operand>& args() { return this->m_args; }
+    const std::vector<Operand>& args() const { return this->m_args; }
 
     const BasicBlock& getBlock(BlockId bid) const {
         if (bid >= this->m_blocks.size())
@@ -320,10 +370,17 @@ public:
 
     ValueId newValue() { return this->m_next_value++; }
 
-    Operand addParam(BlockId bid, Type t) {
-        const Operand p = REGISTER(this->newValue(), t);
-        this->getBlock(bid).params().push_back(p);
-        return p;
+    Operand addArg(Type t) {
+        const Operand a = REGISTER(this->newValue(), t);
+        this->m_args.push_back(a);
+        return a;
+    }
+
+    // Incomings are filled by the caller, through getBlock(bid).phis()
+    Operand addPhi(BlockId bid, Type t) {
+        const Operand result = REGISTER(this->newValue(), t);
+        this->getBlock(bid).phis().push_back(Phi{ result, {} });
+        return result;
     }
 
     Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op) {
@@ -339,8 +396,8 @@ private:
 public:
     Module() = default;
 
-    void addFct(std::string name, std::vector<Type> rets = {}) {
-        this->m_fcts.push_back(Function(this->m_fcts.size(), name, std::move(rets)));
+    void addFct(std::string name, Type ret = VOID()) {
+        this->m_fcts.push_back(Function(this->m_fcts.size(), name, ret));
     }
 
     std::vector<Function>& fcts() { return this->m_fcts; }
