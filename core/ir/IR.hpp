@@ -116,6 +116,7 @@ struct Operand {
         BLOCK,
         REGISTER,
         LITERAL,
+        FUNCTION,
     };
 
     Kind m_kind;
@@ -124,6 +125,7 @@ struct Operand {
         ValueId  m_value;   // REGISTER
         BlockId  m_block;   // BLOCK
         Lireral  m_lit;     // LITERAL
+        FctId    m_fct;     // FUNCTION
     };
 };
 
@@ -140,6 +142,15 @@ inline Operand REGISTER(ValueId v, Type t = INT(Type::Width::W64)) {
         .m_kind = Operand::Kind::REGISTER,
         .m_type = t,
         .m_value = v
+    };
+}
+
+
+inline Operand FUNCTION(FctId f) {
+    return {
+        .m_kind = Operand::Kind::FUNCTION,
+        .m_type = PTR(),
+        .m_fct = f
     };
 }
 
@@ -240,7 +251,12 @@ enum class Opcode: std::uint8_t {
     NEG,  // unary '-'
     // Comparisons: LT .. NE
     LT, LE, GT, GE, EQ, NE,
-    COPY, CALL,
+    COPY,
+    // Functions
+    CALL,
+    // Memory: result = ALLOCA size, result = LOAD addr, STORE addr, value
+    // result = ALLOCA size: reserves a slot in the current function's stack frame and hands a pointer to it
+    ALLOCA, LOAD, STORE,
     // Terminators: BR .. end
     BR, CBR, RET,
 };
@@ -254,7 +270,7 @@ constexpr bool isComparison(Opcode op) {
 }
 
 constexpr bool definesValue(Opcode op) {
-    return !isTerminator(op);
+    return !isTerminator(op) && op != Opcode::STORE;
 }
 
 class Instruction {
@@ -331,10 +347,13 @@ private:
     std::vector<Operand> m_args;
     Type m_ret;
     ValueId m_next_value;
+    // Argument lists of the CALLs in this function, indexed by the call's rhs
+    std::vector<std::vector<Operand>> m_call_args;
 
 public:
     Function(FctId id, std::string name, Type ret = VOID()):
-        m_id(id), m_name(name), m_blocks(), m_args(), m_ret(ret), m_next_value(0)
+        m_id(id), m_name(name), m_blocks(), m_args(), m_ret(ret), m_next_value(0),
+        m_call_args()
     {
         this->addBlock("entry");
     }
@@ -386,6 +405,24 @@ public:
     Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op) {
         const Operand result = definesValue(op) ? REGISTER(this->newValue()) : NONE();
         return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
+    }
+
+    const std::vector<Operand>& callArgs(const Instruction& call) const {
+        if (call.op() != Opcode::CALL) {
+            throw CodegenError("[Function] Not a call in '" + this->m_name + "'");
+        }
+        const std::uint32_t idx = call.rhs().m_lit.m_ui32;
+        if (idx >= this->m_call_args.size()) {
+            throw CodegenError("[Function] Unknown argument list " + std::to_string(idx) + " in '" + this->m_name + "'");
+        }
+        return this->m_call_args[idx];
+    }
+
+    Operand addCall(BlockId bid, Operand callee, std::vector<Operand> args, Type ret) {
+        const Operand result = ret == VOID() ? NONE() : REGISTER(this->newValue(), ret);
+        const Operand idx = LITERAL(static_cast<std::uint32_t>(this->m_call_args.size()));
+        this->m_call_args.push_back(std::move(args));
+        return this->getBlock(bid).addInstruction(result, callee, idx, Opcode::CALL);
     }
 };
 
