@@ -97,6 +97,8 @@ int main(int argc, char* argv[]) {
 
         // cc drives as and ld, and brings in the crt startup files and libc
         const std::string cmd = "cc -no-pie " + asm_path + " -o " + stem;
+        std::printf("blastc: $ %s\n", cmd.c_str());
+        std::fflush(stdout);
         if (std::system(cmd.c_str()) != 0) {
             std::fprintf(stderr, "blastc: assembling and linking '%s' failed\n", asm_path.c_str());
             return 1;
@@ -104,8 +106,10 @@ int main(int argc, char* argv[]) {
         std::printf("blastc: wrote %s and %s\n", asm_path.c_str(), stem.c_str());
 
         std::puts("--- RUN ---");
+        const std::string run = "./" + stem;
+        std::printf("blastc: $ %s\n", run.c_str());
         std::fflush(stdout);
-        const int status = std::system(("./" + stem).c_str());
+        const int status = std::system(run.c_str());
         std::printf("blastc: %s exited with %d\n", stem.c_str(), status);
     } catch (const blast::core::CodegenError& e) {
         std::fprintf(stderr, "blastc: %s\n", e.what());
