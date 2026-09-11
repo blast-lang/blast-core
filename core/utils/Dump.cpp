@@ -270,6 +270,64 @@ std::string instructionText(const ir::Instruction& instr) {
     return text;
 }
 
+std::string regName(codegen::Reg r) {
+    switch (r) {
+        case codegen::Reg::NONE: return "none";
+        case codegen::Reg::RAX:  return "rax";
+        case codegen::Reg::RCX:  return "rcx";
+        case codegen::Reg::RDX:  return "rdx";
+        case codegen::Reg::RBX:  return "rbx";
+        case codegen::Reg::RSP:  return "rsp";
+        case codegen::Reg::RBP:  return "rbp";
+        case codegen::Reg::RSI:  return "rsi";
+        case codegen::Reg::RDI:  return "rdi";
+        case codegen::Reg::R8:   return "r8";
+        case codegen::Reg::R9:   return "r9";
+        case codegen::Reg::R10:  return "r10";
+        case codegen::Reg::R11:  return "r11";
+        case codegen::Reg::R12:  return "r12";
+        case codegen::Reg::R13:  return "r13";
+        case codegen::Reg::R14:  return "r14";
+        case codegen::Reg::R15:  return "r15";
+    }
+    return "?";
+}
+
+std::string machineOpcodeName(codegen::MachineOpcode op) {
+    switch (op) {
+        case codegen::MachineOpcode::MOV:  return "mov";
+        case codegen::MachineOpcode::ADD:  return "add";
+        case codegen::MachineOpcode::IMUL: return "imul";
+    }
+    return "?";
+}
+
+// Virtual registers keep the IR's '%' spelling so a lowered instruction can be
+// read against the IR it came from.
+std::string machineOperandText(const codegen::MachineOperand& op) {
+    switch (op.m_kind) {
+        case codegen::MachineOperand::Kind::NONE: return "";
+        case codegen::MachineOperand::Kind::VREG: return "%" + std::to_string(op.m_vreg);
+        case codegen::MachineOperand::Kind::PREG: return regName(op.m_preg);
+        case codegen::MachineOperand::Kind::LIT:
+            return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
+    }
+    return "?";
+}
+
+std::string machineInstructionText(const codegen::MachineInstruction& instr) {
+    std::string text = machineOpcodeName(instr.m_op);
+    bool has_operand = false;
+    if (instr.m_dst.m_kind != codegen::MachineOperand::Kind::NONE) {
+        text += " " + machineOperandText(instr.m_dst);
+        has_operand = true;
+    }
+    if (instr.m_src.m_kind != codegen::MachineOperand::Kind::NONE) {
+        text += (has_operand ? ", " : " ") + machineOperandText(instr.m_src);
+    }
+    return text;
+}
+
 } // namespace
 
 
@@ -316,6 +374,31 @@ std::string dump(const ir::Module& m) {
     std::string out;
     for (const ir::Function& fn : m.fcts()) {
         out += dump(fn);
+    }
+    return out;
+}
+
+std::string dump(const codegen::MachineFunction& mfn) {
+    std::string out;
+    for (const codegen::MachineBlock& block : mfn.blocks()) {
+        if (!out.empty()) {
+            out += "\n";
+        }
+        out += block.label() + ":\n";
+        for (const codegen::MachineInstruction& instr : block.instrs()) {
+            out += "  " + machineInstructionText(instr) + "\n";
+        }
+    }
+    return out;
+}
+
+std::string dump(const codegen::X86& x86) {
+    std::string out;
+    for (const codegen::MachineFunction& mfn : x86.fcts()) {
+        if (!out.empty()) {
+            out += "\n\n";
+        }
+        out += dump(mfn);
     }
     return out;
 }

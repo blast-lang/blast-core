@@ -1,4 +1,5 @@
 #pragma once
+#include <core/codegen/X86.hpp>
 #include <core/ir/IR.hpp>
 #include <core/lexer/Lexer.hpp>
 #include <core/parser/Ast.hpp>
@@ -23,5 +24,11 @@ std::string dump(const ir::Function& fn);
 
 // Every function in the module, in declaration order.
 std::string dump(const ir::Module& m);
+
+// A lowered function as its blocks and instructions, Intel order: "mov %0, 2".
+std::string dump(const codegen::MachineFunction& mfn);
+
+// Every lowered function, in declaration order.
+std::string dump(const codegen::X86& x86);
 
 } // namespace blast::core::utils

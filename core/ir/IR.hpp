@@ -20,7 +20,7 @@ using ValueId = uint32_t;
 using FctId = uint32_t;
 
 struct Type {
-    enum class Kind : std::uint8_t {
+    enum class Kind: std::uint8_t {
         INT,
         UINT,
         FLOAT,
@@ -28,7 +28,7 @@ struct Type {
         VOID
     };
 
-    enum class Width : std::uint8_t {
+    enum class Width: std::uint8_t {
         W1,
         W8,
         W16,
@@ -313,9 +313,7 @@ private:
     std::vector<BlockId>     m_preds;
 
 public:
-    BasicBlock(BlockId id, std::string label):
-        m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds()
-    {}
+    BasicBlock(BlockId id, std::string label): m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds(){}
 
     BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
@@ -328,6 +326,9 @@ public:
 
     std::vector<BlockId>& preds() { return this->m_preds; }
     const std::vector<BlockId>& preds() const { return this->m_preds; }
+
+    // Find the successor blocks of a given block by looking at its termination instruction
+    std::vector<BlockId> successors() const;
 
     // result is minted by the owning Function: value ids are unique per
     // function, not per block. Prefer Function::addInstruction over this.
@@ -342,9 +343,11 @@ private:
     FctId m_id;
     // Assembly-compatible Mangled Name
     std::string m_name;
-    std::vector<BasicBlock> m_blocks;   // block 0 is the entry
+    // block 0 is the entry
+    std::vector<BasicBlock> m_blocks;
     // Function arguments, live on entry
     std::vector<Operand> m_args;
+    // Return type (may be a built-in tuple)
     Type m_ret;
     ValueId m_next_value;
     // Argument lists of the CALLs in this function, indexed by the call's rhs
@@ -377,8 +380,7 @@ public:
 
     const BasicBlock& getBlock(BlockId bid) const {
         if (bid >= this->m_blocks.size())
-            throw CodegenError("[Function] Unknown block id " + std::to_string(bid)
-                               + " in '" + this->m_name + "'");
+            throw CodegenError("[Function] Unknown block id " + std::to_string(bid) + " in '" + this->m_name + "'");
         return this->m_blocks[bid];
     };
 
@@ -388,6 +390,7 @@ public:
     };
 
     ValueId newValue() { return this->m_next_value++; }
+    ValueId nextValue() const { return this->m_next_value; }
 
     Operand addArg(Type t) {
         const Operand a = REGISTER(this->newValue(), t);

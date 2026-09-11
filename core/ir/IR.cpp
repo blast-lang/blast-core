@@ -71,7 +71,8 @@ Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
 
 Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
     Operand last = NONE();
-    for (const auto& stmt : node.stmts()) {
+    for (const auto& stmt: node.stmts())
+     {
         last = this->visit(stmt.get());
     }
     return last;
@@ -81,6 +82,37 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     this->visit(&unit);
     this->addInstruction(NONE(), NONE(), Opcode::RET);
     return this->m_main;
+}
+
+
+std::vector<BlockId> BasicBlock::successors() const {
+    std::vector<BlockId> scs;
+    if (this->instrs().empty()) {
+        return scs;
+    }
+
+    scs.reserve(2);
+    const Instruction& instr = this->instrs().back();
+
+    switch (instr.op()) {
+        case Opcode::RET: {
+            break;
+        }
+        case Opcode::BR: {
+            scs.push_back(instr.lhs().m_block);
+            break;
+        }
+        case Opcode::CBR: {
+            scs.push_back(instr.lhs().m_block);
+            scs.push_back(instr.rhs().m_block);
+            break;
+        }
+        default: {
+            throw CodegenError("[BasicBlock] Block '" + this->m_label + "' does not end in a terminator");
+        }
+    }
+
+    return scs;
 }
 
 } // namespace blast::core::ir

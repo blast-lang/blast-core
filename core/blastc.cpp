@@ -4,9 +4,11 @@
 #include <core/context/ASTContext.hpp>
 #include <core/context/Resolver.hpp>
 #include <core/ir/IR.hpp>
+#include <core/codegen/X86.hpp>
 #include <core/utils/Dump.hpp>
 #include <core/Exception.hpp>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <string>
 
@@ -66,6 +68,45 @@ int main(int argc, char* argv[]) {
         const auto& module = lowerer.run(*parser.root());
         std::puts("--- IR ---");
         std::printf("%s", blast::core::utils::dump(module).c_str());
+
+        blast::core::codegen::X86 x86;
+        x86.lower(module);
+        std::puts("--- X86 ---");
+        std::printf("%s", blast::core::utils::dump(x86).c_str());
+
+        x86.emit();
+
+        std::string stem(argv[1]);
+        const std::size_t slash = stem.find_last_of('/');
+        if (slash != std::string::npos) {
+            stem = stem.substr(slash + 1);
+        }
+        const std::size_t dot = stem.find_last_of('.');
+        if (dot != std::string::npos) {
+            stem = stem.substr(0, dot);
+        }
+
+        const std::string asm_path = stem + ".s";
+        std::ofstream asm_file(asm_path);
+        if (!asm_file) {
+            std::fprintf(stderr, "blastc: cannot write '%s'\n", asm_path.c_str());
+            return 1;
+        }
+        asm_file << x86.out();
+        asm_file.close();
+
+        // cc drives as and ld, and brings in the crt startup files and libc
+        const std::string cmd = "cc -no-pie " + asm_path + " -o " + stem;
+        if (std::system(cmd.c_str()) != 0) {
+            std::fprintf(stderr, "blastc: assembling and linking '%s' failed\n", asm_path.c_str());
+            return 1;
+        }
+        std::printf("blastc: wrote %s and %s\n", asm_path.c_str(), stem.c_str());
+
+        std::puts("--- RUN ---");
+        std::fflush(stdout);
+        const int status = std::system(("./" + stem).c_str());
+        std::printf("blastc: %s exited with %d\n", stem.c_str(), status);
     } catch (const blast::core::CodegenError& e) {
         std::fprintf(stderr, "blastc: %s\n", e.what());
         return 1;
