@@ -16,6 +16,20 @@ enum class Reg: std::uint8_t {
     R8, R9, R10, R11, R12, R13, R14, R15
 };
 
+// Phyical register, as a type (int/float) and a size
+// Also store information about aliasing
+class Register {
+public:
+    Register(std::string label, ir::Type type): m_label(std::move(label)), m_type(type), m_parent(nullptr), m_subreg() {}  
+
+private:
+    std::string m_label;
+    ir::Type m_type;
+    // Tree-like structure to store aliasing information
+    Register* m_parent;
+    std::vector<Register*> m_subreg;
+};
+
 struct MachineOperand {
     enum class Kind: std::uint8_t {
         NONE,
@@ -82,7 +96,13 @@ inline MachineOperand LIT(ir::Lireral l, ir::Type t) {
 enum class MachineOpcode: std::uint8_t {
     MOV,
     ADD,
-    IMUL
+    IMUL,
+    XOR,
+    CALL,
+    PUSH,
+    POP,
+    RET,
+    LEA,
 };
 
 struct MachineInstruction {
@@ -167,6 +187,7 @@ private:
 public:
     X86() = default;
 
+    std::vector<MachineFunction>& fcts() { return this->m_fcts; }
     const std::vector<MachineFunction>& fcts() const { return this->m_fcts; }
     const std::string& out() const { return this->m_out; }
 
@@ -181,14 +202,11 @@ private:
     MachineOperand lowerOperand(MachineFunction& mfct, ir::Operand op);
 };
 
-
-class Register {
-
-};
-
-
 class RegisterAllocator {
 
+private:
+    // Register names
+    std::vector<std::string> m_regnames;
 };
 
 

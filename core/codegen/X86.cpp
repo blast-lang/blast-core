@@ -6,6 +6,7 @@
 namespace blast::core::codegen {
 
 void X86::lower(const ir::Module& mod) {
+    // TODO: Link fi last block to fi+1 first block ?
     for (const ir::Function& fct : mod.fcts()) {
         this->lowerFct(fct);
     }
@@ -103,10 +104,20 @@ void X86::emit() {
         "    push %rbp\n"
         "    mov %rsp, %rbp\n";
 
+    MachineFunction& main = this->fcts()[0];
+    MachineBlock& main_entry = main.blocks()[0];
+
+    main_entry.addInstruction(MachineOpcode::PUSH, PREG(Reg::RDX, {ir::Type::Kind::INT, ir::Type::Width::W64}), MNONE());
+
     // TODO: block labels and instructions
+    for (const MachineFunction& fct: this->fcts()) {
+        for (const MachineBlock& block: fct.blocks()) {
+            
+        }
+    }
 
     this->m_out +=
-        "    mov $0, %rsi\n"  // TODO: the value of 'a'
+        "    mov $5, %rsi\n"  // TODO: the value of 'a'
         "    lea .Lfmt(%rip), %rdi\n"
         "    xor %eax, %eax\n"
         "    call printf\n"
