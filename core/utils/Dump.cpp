@@ -270,27 +270,11 @@ std::string instructionText(const ir::Instruction& instr) {
     return text;
 }
 
-std::string regName(codegen::Reg r) {
-    switch (r) {
-        case codegen::Reg::NONE: return "none";
-        case codegen::Reg::RAX:  return "rax";
-        case codegen::Reg::RCX:  return "rcx";
-        case codegen::Reg::RDX:  return "rdx";
-        case codegen::Reg::RBX:  return "rbx";
-        case codegen::Reg::RSP:  return "rsp";
-        case codegen::Reg::RBP:  return "rbp";
-        case codegen::Reg::RSI:  return "rsi";
-        case codegen::Reg::RDI:  return "rdi";
-        case codegen::Reg::R8:   return "r8";
-        case codegen::Reg::R9:   return "r9";
-        case codegen::Reg::R10:  return "r10";
-        case codegen::Reg::R11:  return "r11";
-        case codegen::Reg::R12:  return "r12";
-        case codegen::Reg::R13:  return "r13";
-        case codegen::Reg::R14:  return "r14";
-        case codegen::Reg::R15:  return "r15";
+std::string regName(const codegen::Register* r) {
+    if (r == nullptr) {
+        return "none";
     }
-    return "?";
+    return r->label();
 }
 
 std::string machineOpcodeName(codegen::MachineOpcode op) {

@@ -34,7 +34,10 @@ struct Type {
         W16,
         W32,
         W64,
-        W128
+        W80,
+        W128,
+        W256,
+        W512
     };
 
     Kind  m_kind;
@@ -50,7 +53,10 @@ constexpr unsigned bits(Type::Width w) {
         case Type::Width::W16:  return 16;
         case Type::Width::W32:  return 32;
         case Type::Width::W64:  return 64;
+        case Type::Width::W80:  return 80;
         case Type::Width::W128: return 128;
+        case Type::Width::W256: return 256;
+        case Type::Width::W512: return 512;
     }
     return 0;
 }

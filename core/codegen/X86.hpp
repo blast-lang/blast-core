@@ -16,18 +16,50 @@ enum class Reg: std::uint8_t {
     R8, R9, R10, R11, R12, R13, R14, R15
 };
 
+enum class RegClass: std::uint8_t {
+    GP,
+    FP,
+    VECTOR,
+    MASK
+};
+
 // Phyical register, as a type (int/float) and a size
 // Also store information about aliasing
 class Register {
 public:
-    Register(std::string label, ir::Type type): m_label(std::move(label)), m_type(type), m_parent(nullptr), m_subreg() {}  
+    Register(ir::ValueId id, std::string label, ir::Type type, RegClass cls):
+        m_id(id),
+        m_label(std::move(label)),
+        m_type(type),
+        m_class(cls),
+        m_parent(0),
+        m_subreg()
+    {}
+
+    ir::ValueId id() const { return this->m_id; }
+    const std::string& label() const { return this->m_label; }
+    ir::Type type() const { return this->m_type; }
+    RegClass regClass() const { return this->m_class; }
+
+    ir::ValueId parent() const { return this->m_parent; }
+    void setParent(ir::ValueId parent) { this->m_parent = parent; }
+
+    const std::vector<ir::ValueId>& subregs() const { return this->m_subreg; }
+    std::vector<ir::ValueId>& subregs() { return this->m_subreg; }
+
+    void addSubreg(Register& sub) {
+        sub.setParent(this->m_id);
+        this->m_subreg.push_back(sub.id());
+    }
 
 private:
+    ir::ValueId m_id;
     std::string m_label;
     ir::Type m_type;
+    RegClass m_class;
     // Tree-like structure to store aliasing information
-    Register* m_parent;
-    std::vector<Register*> m_subreg;
+    ir::ValueId m_parent;
+    std::vector<ir::ValueId> m_subreg;
 };
 
 struct MachineOperand {
@@ -42,13 +74,10 @@ struct MachineOperand {
 
     Kind     m_kind;
     ir::Type m_type;
-    // Is this operand used for read and/or write in the instruction using it?
-    bool m_is_use;
-    bool m_is_def;
     union {
-        ir::ValueId m_vreg;
-        Reg         m_preg;
-        ir::Lireral m_lit;
+        ir::ValueId     m_vreg;
+        const Register* m_preg;
+        ir::Lireral     m_lit;
     };
 };
 
@@ -56,8 +85,6 @@ inline MachineOperand MNONE() {
     return {
         .m_kind = MachineOperand::Kind::NONE,
         .m_type = ir::VOID(),
-        .m_is_use = false,
-        .m_is_def = false,
         .m_lit = { .m_i64 = 0 }
     };
 }
@@ -66,18 +93,14 @@ inline MachineOperand VREG(ir::ValueId v, ir::Type t) {
     return {
         .m_kind = MachineOperand::Kind::VREG,
         .m_type = t,
-        .m_is_use = false,
-        .m_is_def = false,
         .m_vreg = v
     };
 }
 
-inline MachineOperand PREG(Reg r, ir::Type t) {
+inline MachineOperand PREG(const Register* r, ir::Type t) {
     return {
         .m_kind = MachineOperand::Kind::PREG,
         .m_type = t,
-        .m_is_use = false,
-        .m_is_def = false,
         .m_preg = r
     };
 }
@@ -86,8 +109,6 @@ inline MachineOperand LIT(ir::Lireral l, ir::Type t) {
     return {
         .m_kind = MachineOperand::Kind::LIT,
         .m_type = t,
-        .m_is_use = false,
-        .m_is_def = false,
         .m_lit = l
     };
 }
@@ -202,11 +223,19 @@ private:
     MachineOperand lowerOperand(MachineFunction& mfct, ir::Operand op);
 };
 
+// m_registers is indexed by Register::id(), so slot 0 is a placeholder standing
+// for 'no register'. It is never resized after construction: MachineOperand
+// holds pointers into it.
 class RegisterAllocator {
-
 private:
-    // Register names
-    std::vector<std::string> m_regnames;
+    std::vector<Register> m_registers;
+
+public:
+    RegisterAllocator();
+
+    const std::vector<Register>& registers() const { return this->m_registers; }
+
+    const Register& reg(ir::ValueId id) const { return this->m_registers[id]; }
 };
 
 
