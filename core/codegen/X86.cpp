@@ -50,7 +50,7 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const s
         }
     }
 
-    for (const ir::Instruction& inst : block.instrs()) {
+    for (const ir::Instruction& inst: block.instrs()) {
         this->lowerInstruction(mfct, mblock, inst);
     }
 }
@@ -126,8 +126,7 @@ void X86::emit() {
         "    ret\n";
 }
 
-
-RegisterAllocator::RegisterAllocator() {
+RegisterAllocator::RegisterAllocator(X86& x86) {
     // General purpose
     Register RAX(1, "RAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W64}, RegClass::GP);
     Register EAX(2, "EAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W32}, RegClass::GP);
@@ -498,6 +497,64 @@ RegisterAllocator::RegisterAllocator() {
     this->m_registers.push_back(std::move(K5));
     this->m_registers.push_back(std::move(K6));
     this->m_registers.push_back(std::move(K7));
+
+    // Building successors
+    for (const MachineFunction& f: x86.fcts()){
+
+    }
 }
+
+
+// https://cse.sc.edu/~mgv/csce531sp20/notes/mogensen_Ch8_Slides_register-allocation.pdf
+void allocate(MachineFunction& fct) {
+    // Gives where each block starts as if 
+    // you concatenated all the blocks' instruction vectors into one list in layout order.
+    std::vector<std::size_t> bases;
+    bases.reserve(fct.blocks().size());
+    std::size_t next = 0;
+    for (const MachineBlock& block: fct.blocks()) {
+        bases.push_back(next);
+        next += block.instrs().size();
+    }
+
+    // First, for a given block, find its successor(s)
+    std::unordered_map<ir::BlockId, std::vector<ir::BlockId>> block_succs;
+    for (const MachineBlock& block: fct.blocks()) {
+        for (ir::BlockId pred: block.preds()) {
+            block_succs[pred].push_back(block.id());
+        }
+    }
+
+    // Given an instruction `i`, give the set of instructions that comes after
+    // succ(i) = {i + 1} for most instructions
+    // succ(i) = {j} for labels and gotos
+    // succ(i) = {j, k} for if/else/loops
+    // succ(i) = {} is i is the end of the program
+    std::unordered_map<MachineInstruction*, std::vector<MachineInstruction*>> succ;
+    for (MachineBlock& block: fct.blocks()) {
+        if (block.instrs().empty()) {
+            continue;
+        }
+
+        for (std::size_t i = 0; i + 1 < block.instrs().size(); i++) {
+            succ[&block.instrs()[i]] = {&block.instrs()[i + 1]};
+        }
+
+        std::vector<MachineInstruction*> targets;
+        const auto it = block_succs.find(block.id());
+        if (it != block_succs.end()) {
+            for (ir::BlockId s: it->second) {
+                MachineBlock& target = fct.getBlock(s);
+                // The successor instruction of a JUMP is the next block's first intruction
+                if (!target.instrs().empty()) {
+                    targets.push_back(&target.instrs().front());
+                }
+            }
+        }
+        succ[&block.instrs().back()] = std::move(targets);
+    }
+}
+
+
 
 } // namespace blast::core::codegen

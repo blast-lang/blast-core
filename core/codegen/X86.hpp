@@ -231,10 +231,9 @@ private:
     std::vector<Register> m_registers;
 
 public:
-    RegisterAllocator();
+    RegisterAllocator(X86& x86);
 
     const std::vector<Register>& registers() const { return this->m_registers; }
-
     const Register& reg(ir::ValueId id) const { return this->m_registers[id]; }
 };
 
