@@ -74,6 +74,9 @@ int main(int argc, char* argv[]) {
         std::puts("--- X86 ---");
         std::printf("%s", blast::core::utils::dump(x86).c_str());
 
+        std::puts("--- REGALLOC ---");
+        blast::core::codegen::RegisterAllocator regalloc(x86);
+
         x86.emit();
 
         std::string stem(argv[1]);

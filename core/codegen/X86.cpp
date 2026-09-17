@@ -1,6 +1,10 @@
 #include <core/codegen/X86.hpp>
 #include <core/Exception.hpp>
 
+#include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <set>
 #include <vector>
 
 namespace blast::core::codegen {
@@ -125,6 +129,8 @@ void X86::emit() {
         "    pop %rbp\n"
         "    ret\n";
 }
+
+void allocate(MachineFunction& fct);
 
 RegisterAllocator::RegisterAllocator(X86& x86) {
     // General purpose
@@ -499,8 +505,8 @@ RegisterAllocator::RegisterAllocator(X86& x86) {
     this->m_registers.push_back(std::move(K7));
 
     // Building successors
-    for (const MachineFunction& f: x86.fcts()){
-
+    for (MachineFunction& f: x86.fcts()){
+        allocate(f);
     }
 }
 
@@ -530,7 +536,7 @@ void allocate(MachineFunction& fct) {
     // succ(i) = {j} for labels and gotos
     // succ(i) = {j, k} for if/else/loops
     // succ(i) = {} is i is the end of the program
-    std::unordered_map<MachineInstruction*, std::vector<MachineInstruction*>> succ;
+    std::unordered_map<MachineInstruction*, std::set<MachineInstruction*>> succ;
     for (MachineBlock& block: fct.blocks()) {
         if (block.instrs().empty()) {
             continue;
@@ -540,18 +546,133 @@ void allocate(MachineFunction& fct) {
             succ[&block.instrs()[i]] = {&block.instrs()[i + 1]};
         }
 
-        std::vector<MachineInstruction*> targets;
+        std::set<MachineInstruction*> targets;
         const auto it = block_succs.find(block.id());
         if (it != block_succs.end()) {
             for (ir::BlockId s: it->second) {
                 MachineBlock& target = fct.getBlock(s);
                 // The successor instruction of a JUMP is the next block's first intruction
                 if (!target.instrs().empty()) {
-                    targets.push_back(&target.instrs().front());
+                    targets.insert(&target.instrs().front());
                 }
             }
         }
         succ[&block.instrs().back()] = std::move(targets);
+    }
+
+    // Now, we will compute liveliness of operands
+    // We define use[i] and wrt[i]:
+    // use[i] is the set of operand (register) used/read by instruction i
+    // wrt[i] is the set of operand (register) overwritten by instruction i
+    auto isReg = [](const MachineOperand& operand) {
+        return operand.m_kind == MachineOperand::Kind::VREG
+            || operand.m_kind == MachineOperand::Kind::PREG;
+    };
+
+    // Liveness is about values, not operand slots: the same vreg read by two
+    // instructions must compare equal
+    auto regId = [](const MachineOperand& operand) -> ir::ValueId {
+        if (operand.m_kind == MachineOperand::Kind::PREG) {
+            return operand.m_preg->id();
+        }
+        return operand.m_vreg;
+    };
+
+    std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> use;
+    std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> wrt;
+    for (auto& [instr, s]: succ) {
+        use[instr] = {};
+        wrt[instr] = {};
+        if (
+            instr->m_op == MachineOpcode::MOV ||
+            instr->m_op == MachineOpcode::ADD ||
+            instr->m_op == MachineOpcode::IMUL ||
+            instr->m_op == MachineOpcode::XOR
+        ) {
+            if (isReg(instr->m_src)) {
+                use[instr].insert(regId(instr->m_src));
+            }
+            if (isReg(instr->m_dst)) {
+                wrt[instr].insert(regId(instr->m_dst));
+            }
+        }
+    }
+
+    // We now define in[i] and out[i]:
+    // in[i] is the set of operand that are live at the start of instruction i
+    // out[i] is the set of operand that are live at the end of instruction i
+    std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> in;
+    std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> out;
+    // Defined as:
+    // in[i] = use[i] || (out[i] \ wrt[i])
+    // out[i] = Union(in[j]) for j in succ[i]
+    // Those two are mutually recursive, so they are solved by iterating from the
+    // empty sets until a whole sweep changes nothing
+    std::vector<MachineInstruction*> order;
+    for (MachineBlock& block: fct.blocks()) {
+        for (MachineInstruction& instr: block.instrs()) {
+            order.push_back(&instr);
+        }
+    }
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        // Liveness flows backward: we do a reverse sweep
+        for (auto it = order.rbegin(); it != order.rend(); ++it) {
+            MachineInstruction* i = *it;
+            // Union(in[j]) for j in succ[i]
+            std::set<ir::ValueId> next_out;
+            for (MachineInstruction* j: succ[i]) {
+                next_out.insert(in[j].begin(), in[j].end());
+            }
+
+            std::set<ir::ValueId> next_in;
+            // out[i] \ wrt[i]
+            std::set_difference(
+                next_out.begin(), next_out.end(),
+                wrt[i].begin(), wrt[i].end(),
+                std::inserter(next_in, next_in.end())
+            );
+            // use[i] || <above>
+            next_in.insert(use[i].begin(), use[i].end());
+
+            if (next_in != in[i] || next_out != out[i]) {
+                in[i] = std::move(next_in);
+                out[i] = std::move(next_out);
+                changed = true;
+            }
+        }
+    }
+
+    // Now we build the interference graph
+    // Operand (register) x intefer with y if there is an intruction i that verify
+    // x in wrt[i] AND y in out[i] AND x != y
+    
+
+    // Coloring
+
+
+
+    auto setName = [](const std::set<ir::ValueId>& regs) -> std::string {
+        std::string res = "{";
+        for (ir::ValueId reg: regs) {
+            if (res.size() > 1) {
+                res += ", ";
+            }
+            res += "%" + std::to_string(reg);
+        }
+        return res + "}";
+    };
+
+    for (MachineBlock& block: fct.blocks()) {
+        std::cout << block.label() << ":\n";
+        for (MachineInstruction& instr: block.instrs()) {
+            std::cout << "    use=" << setName(use[&instr])
+                      << " wrt=" << setName(wrt[&instr])
+                      << " in=" << setName(in[&instr])
+                      << " out=" << setName(out[&instr]) << "\n";
+        }
     }
 }
 
