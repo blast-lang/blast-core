@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -9,12 +10,6 @@
 #include <core/ir/IR.hpp>
 
 namespace blast::core::codegen {
-
-enum class Reg: std::uint8_t {
-    NONE,
-    RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
-    R8, R9, R10, R11, R12, R13, R14, R15
-};
 
 enum class RegClass: std::uint8_t {
     GP,
@@ -27,11 +22,14 @@ enum class RegClass: std::uint8_t {
 // Also store information about aliasing
 class Register {
 public:
-    Register(ir::ValueId id, std::string label, ir::Type type, RegClass cls):
+    Register(ir::ValueId id, std::string label, ir::Type type, RegClass cls, std::uint8_t family, bool reserved, bool caller_saved):
         m_id(id),
         m_label(std::move(label)),
         m_type(type),
         m_class(cls),
+        m_family(family),
+        m_reserved(reserved),
+        m_caller_saved(caller_saved),
         m_parent(0),
         m_subreg()
     {}
@@ -40,6 +38,11 @@ public:
     const std::string& label() const { return this->m_label; }
     ir::Type type() const { return this->m_type; }
     RegClass regClass() const { return this->m_class; }
+
+    // Registers of one family share a color: RAX, EAX and AL are the same family.
+    std::uint8_t family() const { return this->m_family; }
+    bool reserved() const { return this->m_reserved; }
+    bool callerSaved() const { return this->m_caller_saved; }
 
     ir::ValueId parent() const { return this->m_parent; }
     void setParent(ir::ValueId parent) { this->m_parent = parent; }
@@ -57,6 +60,15 @@ private:
     std::string m_label;
     ir::Type m_type;
     RegClass m_class;
+    std::uint8_t m_family;
+    bool m_reserved;
+    // The ABI splits the registers in two: a callee must restore the callee-saved
+    // ones before returning, so a caller can assume they survive a CALL, while the
+    // caller-saved ones may be clobbered by the callee and must be spilled around
+    // the CALL if their value is still needed after it. The allocator uses this to
+    // drop the caller-saved colors from the domain of any value live across a CALL,
+    // which is cheaper than emitting the spills.
+    bool m_caller_saved;
     // Tree-like structure to store aliasing information
     ir::ValueId m_parent;
     std::vector<ir::ValueId> m_subreg;
@@ -203,17 +215,14 @@ public:
 class X86 {
 private:
     std::vector<MachineFunction> m_fcts;
-    std::string m_out;
 
 public:
     X86() = default;
 
     std::vector<MachineFunction>& fcts() { return this->m_fcts; }
     const std::vector<MachineFunction>& fcts() const { return this->m_fcts; }
-    const std::string& out() const { return this->m_out; }
 
     void lower(const ir::Module& mod);
-    void emit();
 
 private:
     void lowerFct(const ir::Function& fct);
@@ -235,6 +244,7 @@ public:
 
     const std::vector<Register>& registers() const { return this->m_registers; }
     const Register& reg(ir::ValueId id) const { return this->m_registers[id]; }
+    const Register& reg(std::string_view label) const;
 };
 
 

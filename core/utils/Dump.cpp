@@ -1,6 +1,8 @@
 #include <core/utils/Dump.hpp>
 #include <core/ir/IR.hpp>
 #include <core/parser/AstVisitor.hpp>
+#include <cctype>
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -282,6 +284,12 @@ std::string machineOpcodeName(codegen::MachineOpcode op) {
         case codegen::MachineOpcode::MOV:  return "mov";
         case codegen::MachineOpcode::ADD:  return "add";
         case codegen::MachineOpcode::IMUL: return "imul";
+        case codegen::MachineOpcode::XOR:  return "xor";
+        case codegen::MachineOpcode::CALL: return "call";
+        case codegen::MachineOpcode::PUSH: return "push";
+        case codegen::MachineOpcode::POP:  return "pop";
+        case codegen::MachineOpcode::RET:  return "ret";
+        case codegen::MachineOpcode::LEA:  return "lea";
     }
     return "?";
 }
@@ -310,6 +318,61 @@ std::string machineInstructionText(const codegen::MachineInstruction& instr) {
         text += (has_operand ? ", " : " ") + machineOperandText(instr.m_src);
     }
     return text;
+}
+
+// --- AT&T rendering ------------------------------------------------------
+char widthSuffix(ir::Type type) {
+    switch (type.m_width) {
+        case ir::Type::Width::W8:  return 'b';
+        case ir::Type::Width::W16: return 'w';
+        case ir::Type::Width::W32: return 'l';
+        case ir::Type::Width::W64: return 'q';
+        default:
+            throw CodegenError("[emit] No AT&T suffix for width " + std::to_string(ir::bits(type)));
+    }
+}
+
+std::string mnemonic(codegen::MachineOpcode op) {
+    const std::string name = machineOpcodeName(op);
+    if (name == "?") {
+        throw CodegenError("[emit] Unknown opcode");
+    }
+    return name;
+}
+
+std::string attOperandText(const codegen::MachineOperand& op) {
+    switch (op.m_kind) {
+        case codegen::MachineOperand::Kind::PREG: {
+            if (op.m_preg == nullptr) {
+                throw CodegenError("[emit] Physical register operand without a register");
+            }
+            std::string text = op.m_preg->label();
+            for (char& c : text) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            return "%" + text;
+        }
+        case codegen::MachineOperand::Kind::LIT:
+            return "$" + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
+        case codegen::MachineOperand::Kind::VREG:
+            throw CodegenError("[emit] Virtual register %" + std::to_string(op.m_vreg) + " left at emit time");
+        default:
+            throw CodegenError("[emit] Unsupported operand kind at emit time");
+    }
+}
+
+// AT&T puts the source first, and an immediate carries no width of its own, so
+// the mnemonic takes its suffix from the destination.
+std::string attInstructionText(const codegen::MachineInstruction& instr) {
+    const std::string op = mnemonic(instr.m_op);
+    if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::NONE) {
+        return op;
+    }
+    const std::string head = op + widthSuffix(instr.m_dst.m_type) + " ";
+    if (instr.m_src.m_kind == codegen::MachineOperand::Kind::NONE) {
+        return head + attOperandText(instr.m_dst);
+    }
+    return head + attOperandText(instr.m_src) + ", " + attOperandText(instr.m_dst);
 }
 
 } // namespace
@@ -384,6 +447,38 @@ std::string dump(const codegen::X86& x86) {
         }
         out += dump(mfn);
     }
+    return out;
+}
+
+std::string emit(const codegen::X86& x86) {
+    std::string out =
+        "    .section .note.GNU-stack,\"\",@progbits\n"
+        "\n"
+        "    .section .rodata\n"
+        ".Lfmt:\n"
+        "    .string \"a = %ld\\n\"\n"
+        "\n"
+        "    .text\n"
+        "    .globl main\n"
+        "main:\n";
+
+    for (const codegen::MachineFunction& mfn : x86.fcts()) {
+        for (const codegen::MachineBlock& block : mfn.blocks()) {
+            out += block.label() + ":\n";
+            for (const codegen::MachineInstruction& instr : block.instrs()) {
+                out += "    " + attInstructionText(instr) + "\n";
+            }
+        }
+    }
+
+    out +=
+        "    mov $5, %rsi\n"  // TODO: the value of 'a'
+        "    lea .Lfmt(%rip), %rdi\n"
+        "    xor %eax, %eax\n"
+        "    call printf\n"
+        "    xor %eax, %eax\n"
+        "    pop %rbp\n"
+        "    ret\n";
     return out;
 }
 

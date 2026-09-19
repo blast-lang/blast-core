@@ -1,4 +1,7 @@
-a::Int = 8;
 b::Int = 6;
-a = a + 2;
-a = a * b;
+a::Int = 8;
+a = a + 1;
+a = a * a;
+b = b * a;
+c::Int = 9;
+c = c + 1;

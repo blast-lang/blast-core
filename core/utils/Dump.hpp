@@ -31,4 +31,8 @@ std::string dump(const codegen::MachineFunction& mfn);
 // Every lowered function, in declaration order.
 std::string dump(const codegen::X86& x86);
 
+// The whole translation unit as gas-ready AT&T assembly: "movq $5, %rax".
+// Every operand must be a physical register by then.
+std::string emit(const codegen::X86& x86);
+
 } // namespace blast::core::utils

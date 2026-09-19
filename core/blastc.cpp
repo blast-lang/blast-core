@@ -76,8 +76,7 @@ int main(int argc, char* argv[]) {
 
         std::puts("--- REGALLOC ---");
         blast::core::codegen::RegisterAllocator regalloc(x86);
-
-        x86.emit();
+        std::printf("%s", blast::core::utils::dump(x86).c_str());
 
         std::string stem(argv[1]);
         const std::size_t slash = stem.find_last_of('/');
@@ -95,7 +94,7 @@ int main(int argc, char* argv[]) {
             std::fprintf(stderr, "blastc: cannot write '%s'\n", asm_path.c_str());
             return 1;
         }
-        asm_file << x86.out();
+        asm_file << blast::core::utils::emit(x86);
         asm_file.close();
 
         // cc drives as and ld, and brings in the crt startup files and libc
