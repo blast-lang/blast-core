@@ -75,7 +75,9 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
             mblock.addInstruction(MachineOpcode::IMUL, dst, rhs);
             break;
         case ir::Opcode::RET:
-            // TODO!
+            // The returned value sits in m_src so liveness reads it as a use:
+            // as a destination it would look like a write and kill the value.
+            mblock.addInstruction(MachineOpcode::RET, MNONE(), lhs);
             break;
         default:
             throw CodegenError("[X86] Unsupported opcode");
@@ -498,6 +500,37 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
         { MachineOpcode::MOV, rbp, rsp }
     });
 
+    // The RET marker becomes the printf call the runtime still stands in for,
+    // followed by the frame teardown. Built here because a fixed register only
+    // exists once the register table does, and before liveness so the CALL is
+    // part of the stream the allocator reasons about.
+    const ir::Type w32 = {ir::Type::Kind::INT, ir::Type::Width::W32};
+    const MachineOperand rsi = PREG(&regs.reg("RSI"), w64);
+    const MachineOperand rdi = PREG(&regs.reg("RDI"), w64);
+    const MachineOperand eax = PREG(&regs.reg("EAX"), w32);
+    for (MachineBlock& block: fct.blocks()) {
+        std::vector<MachineInstruction>& instrs = block.instrs();
+        for (std::size_t k = 0; k < instrs.size(); ++k) {
+            if (instrs[k].m_op != MachineOpcode::RET) {
+                continue;
+            }
+            const MachineOperand value = instrs[k].m_src;
+            std::vector<MachineInstruction> tail;
+            if (value.m_kind != MachineOperand::Kind::NONE) {
+                tail.push_back({ MachineOpcode::MOV, rsi, value });
+            }
+            tail.push_back({ MachineOpcode::LEA, rdi, RIP(".Lfmt", w64) });
+            tail.push_back({ MachineOpcode::XOR, eax, eax });
+            tail.push_back({ MachineOpcode::CALL, SYM("printf", ir::VOID()), MNONE() });
+            tail.push_back({ MachineOpcode::XOR, eax, eax });
+            tail.push_back({ MachineOpcode::POP, rbp, MNONE() });
+            tail.push_back({ MachineOpcode::RET, MNONE(), MNONE() });
+            const auto at = instrs.erase(instrs.begin() + static_cast<std::ptrdiff_t>(k));
+            instrs.insert(at, tail.begin(), tail.end());
+            k += tail.size() - 1;
+        }
+    }
+
     // Gives where each block starts as if
     // you concatenated all the blocks' instruction vectors into one list in layout order.
     std::vector<std::size_t> bases;
@@ -549,36 +582,52 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
     // We define use[i] and wrt[i]:
     // use[i] is the set of operand (register) used/read by instruction i
     // wrt[i] is the set of operand (register) overwritten by instruction i
-    auto isReg = [](const MachineOperand& operand) {
-        return operand.m_kind == MachineOperand::Kind::VREG
-            || operand.m_kind == MachineOperand::Kind::PREG;
+    auto isVreg = [](const MachineOperand& operand) {
+        return operand.m_kind == MachineOperand::Kind::VREG;
+    };
+
+    auto isPreg = [](const MachineOperand& operand) {
+        return operand.m_kind == MachineOperand::Kind::PREG;
     };
 
     // Liveness is about values, not operand slots: the same vreg read by two
     // instructions must compare equal
     auto regId = [](const MachineOperand& operand) -> ir::ValueId {
-        if (operand.m_kind == MachineOperand::Kind::PREG) {
-            return operand.m_preg->id();
-        }
         return operand.m_vreg;
     };
 
+    // A physical register is never a value to colour, it is a constraint, so it
+    // is kept out of use/wrt and collected as what the instruction destroys.
     std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> use;
     std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> wrt;
+    // clobber[i] is the set of physical register ids that instruction i destroys
+    std::unordered_map<MachineInstruction*, std::set<ir::ValueId>> clobber;
     for (auto& [instr, s]: succ) {
         use[instr] = {};
         wrt[instr] = {};
+        clobber[instr] = {};
         if (
             instr->m_op == MachineOpcode::MOV ||
             instr->m_op == MachineOpcode::ADD ||
             instr->m_op == MachineOpcode::IMUL ||
             instr->m_op == MachineOpcode::XOR
         ) {
-            if (isReg(instr->m_src)) {
+            if (isVreg(instr->m_src)) {
                 use[instr].insert(regId(instr->m_src));
             }
-            if (isReg(instr->m_dst)) {
+            if (isVreg(instr->m_dst)) {
                 wrt[instr].insert(regId(instr->m_dst));
+            }
+        }
+        if (isPreg(instr->m_dst)) {
+            clobber[instr].insert(instr->m_dst.m_preg->id());
+        }
+        // A callee may return having trashed every caller-saved register
+        if (instr->m_op == MachineOpcode::CALL) {
+            for (const Register& r: regs.registers()) {
+                if (r.callerSaved()) {
+                    clobber[instr].insert(r.id());
+                }
             }
         }
     }
@@ -665,8 +714,6 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
         }
     }
 
-
-
     // Coloring
     // Domains is the list of colors (PREG) an operand (VREG) can take
     std::unordered_map<ir::ValueId, std::set<ir::ValueId>> domains;
@@ -690,15 +737,12 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
         }
     }
 
-    // Reduce domains based on caller saved register constraints
+    // A value live across an instruction cannot sit in a register that
+    // instruction destroys
     for (MachineInstruction* i: order) {
-        if (i->m_op == MachineOpcode::CALL) {
-            for (ir::ValueId y: out[i]) {
-                for(const Register& r: regs.registers()) {
-                    if (r.callerSaved()) {
-                        domains.at(y).erase(r.id());
-                    }
-                }
+        for (ir::ValueId y: out[i]) {
+            for (ir::ValueId r: clobber[i]) {
+                domains.at(y).erase(r);
             }
         }
     }
@@ -747,16 +791,21 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
             }
             inter_graph.erase(*it);
         }
+        // TODO:
+        // Register aliasing is unused. family() and subregs() are never read by allocate(), so colors are per register id: nothing stops %0 getting RAX and %1 getting EAX, which are the same 64 bits. Everything is i64 today so you can't hit it yet, but it's wrong the moment a narrower type appears. Two values interfere means their families must differ, not their ids.
+
+
+
     } while (!inter_graph.empty());
 
     // Apply the coloring by changing VREG into PREG!
     for (auto it = order.begin(); it != order.end(); ++it) {
         MachineInstruction* i = *it;
         if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
-            i->m_src = PREG(&regs.registers()[colors.at(i->m_src.m_vreg)], i->m_src.m_type);
+            i->m_src = PREG(&regs.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
         }
         if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
-            i->m_dst = PREG(&regs.registers()[colors.at(i->m_dst.m_vreg)], i->m_dst.m_type);
+            i->m_dst = PREG(&regs.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
         }
     }
 }

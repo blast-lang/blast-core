@@ -301,6 +301,8 @@ std::string machineOperandText(const codegen::MachineOperand& op) {
         case codegen::MachineOperand::Kind::NONE: return "";
         case codegen::MachineOperand::Kind::VREG: return "%" + std::to_string(op.m_vreg);
         case codegen::MachineOperand::Kind::PREG: return regName(op.m_preg);
+        case codegen::MachineOperand::Kind::SYM:  return op.m_sym;
+        case codegen::MachineOperand::Kind::RIP:  return op.m_sym + "(rip)";
         case codegen::MachineOperand::Kind::LIT:
             return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
     }
@@ -352,6 +354,10 @@ std::string attOperandText(const codegen::MachineOperand& op) {
             }
             return "%" + text;
         }
+        case codegen::MachineOperand::Kind::SYM:
+            return op.m_sym;
+        case codegen::MachineOperand::Kind::RIP:
+            return op.m_sym + "(%rip)";
         case codegen::MachineOperand::Kind::LIT:
             return "$" + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
         case codegen::MachineOperand::Kind::VREG:
@@ -362,13 +368,18 @@ std::string attOperandText(const codegen::MachineOperand& op) {
 }
 
 // AT&T puts the source first, and an immediate carries no width of its own, so
-// the mnemonic takes its suffix from the destination.
+// the mnemonic takes its suffix from the destination. A label has no width, so
+// a symbolic destination leaves the mnemonic bare.
 std::string attInstructionText(const codegen::MachineInstruction& instr) {
     const std::string op = mnemonic(instr.m_op);
     if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::NONE) {
         return op;
     }
-    const std::string head = op + widthSuffix(instr.m_dst.m_type) + " ";
+    std::string head = op;
+    if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::PREG) {
+        head += widthSuffix(instr.m_dst.m_type);
+    }
+    head += " ";
     if (instr.m_src.m_kind == codegen::MachineOperand::Kind::NONE) {
         return head + attOperandText(instr.m_dst);
     }
@@ -456,7 +467,7 @@ std::string emit(const codegen::X86& x86) {
         "\n"
         "    .section .rodata\n"
         ".Lfmt:\n"
-        "    .string \"a = %ld\\n\"\n"
+        "    .string \"result = %ld\\n\"\n"
         "\n"
         "    .text\n"
         "    .globl main\n"
@@ -471,14 +482,6 @@ std::string emit(const codegen::X86& x86) {
         }
     }
 
-    out +=
-        "    mov $5, %rsi\n"  // TODO: the value of 'a'
-        "    lea .Lfmt(%rip), %rdi\n"
-        "    xor %eax, %eax\n"
-        "    call printf\n"
-        "    xor %eax, %eax\n"
-        "    pop %rbp\n"
-        "    ret\n";
     return out;
 }
 

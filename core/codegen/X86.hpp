@@ -81,7 +81,11 @@ struct MachineOperand {
         VREG,
         // Physical register after regestir allocation
         PREG,
-        LIT
+        LIT,
+        // A bare assembler label, as a CALL target
+        SYM,
+        // The same label taken relative to RIP, as a LEA source
+        RIP
     };
 
     Kind     m_kind;
@@ -91,6 +95,8 @@ struct MachineOperand {
         const Register* m_preg;
         ir::Lireral     m_lit;
     };
+    // A union cannot hold a std::string, so SYM and RIP keep their name here
+    std::string m_sym;
 };
 
 inline MachineOperand MNONE() {
@@ -114,6 +120,24 @@ inline MachineOperand PREG(const Register* r, ir::Type t) {
         .m_kind = MachineOperand::Kind::PREG,
         .m_type = t,
         .m_preg = r
+    };
+}
+
+inline MachineOperand SYM(std::string name, ir::Type t) {
+    return {
+        .m_kind = MachineOperand::Kind::SYM,
+        .m_type = t,
+        .m_lit = { .m_i64 = 0 },
+        .m_sym = std::move(name)
+    };
+}
+
+inline MachineOperand RIP(std::string name, ir::Type t) {
+    return {
+        .m_kind = MachineOperand::Kind::RIP,
+        .m_type = t,
+        .m_lit = { .m_i64 = 0 },
+        .m_sym = std::move(name)
     };
 }
 

@@ -79,8 +79,8 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 }
 
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
-    this->visit(&unit);
-    this->addInstruction(NONE(), NONE(), Opcode::RET);
+    const Operand last = this->visit(&unit);
+    this->addInstruction(last, NONE(), Opcode::RET);
     return this->m_main;
 }
 
