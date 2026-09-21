@@ -20,7 +20,6 @@ void X86::lower(const ir::Module& mod) {
 void X86::lowerFct(const ir::Function& fct) {
     this->m_fcts.push_back(MachineFunction(fct.id(), fct.name(), fct.nextValue()));
     MachineFunction& mfct = this->m_fcts.back();
-
     // Function ALWAYS have an entry block
     const ir::BasicBlock& entry = fct.getBlock(0);
 
@@ -44,6 +43,24 @@ void X86::lowerFct(const ir::Function& fct) {
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         this->lowerBlock(mfct, fct.getBlock(*it), visited);
     }
+
+    // The new entry block it still at the begining
+    std::vector<MachineInstruction>& new_entry = mfct.blocks().front().instrs();
+    // Inject the 'save' frame (stack) instructions
+    const MachineOperand rbp = PREG(&this->getReg("RBP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
+    const MachineOperand rsp = PREG(&this->getReg("RSP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
+    const MachineOperand eax = PREG(&this->getReg("EAX"), {ir::Type::Kind::INT, ir::Type::Width::W32});
+    new_entry.insert(new_entry.begin(), {
+        { MachineOpcode::PUSH, MNONE(), rbp },
+        { MachineOpcode::MOV, rbp, rsp }
+    });
+    // Same logic for the final block (frame teardown)
+    std::vector<MachineInstruction>& new_exit = mfct.blocks().back().instrs();
+    // Insert stack pointet restore BEFORE the return statement
+    new_exit.insert(new_exit.end()-1, {
+        { MachineOpcode::XOR, eax, eax },
+        { MachineOpcode::POP, rbp, MNONE() },
+    });
 }
 
 void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const std::vector<bool>& reachable) {
@@ -494,7 +511,6 @@ X86::X86(): m_registers(), m_regnames() {
 void allocate(MachineFunction& fct, X86& x86);
 
 RegisterAllocator::RegisterAllocator(X86& x86) {
-
     // Building successors
     for (MachineFunction& f: x86.fcts()){
         allocate(f, x86);
@@ -504,38 +520,6 @@ RegisterAllocator::RegisterAllocator(X86& x86) {
 
 // https://cse.sc.edu/~mgv/csce531sp20/notes/mogensen_Ch8_Slides_register-allocation.pdf
 void allocate(MachineFunction& fct, X86& x86) {
-    // The frame setup goes in before liveness runs, so the pass sees the same
-    // instruction stream the emitter will print.
-    const ir::Type w64 = {ir::Type::Kind::INT, ir::Type::Width::W64};
-    const MachineOperand rbp = PREG(&x86.getReg("RBP"), w64);
-    const MachineOperand rsp = PREG(&x86.getReg("RSP"), w64);
-    std::vector<MachineInstruction>& entry = fct.blocks()[0].instrs();
-    entry.insert(entry.begin(), {
-        { MachineOpcode::PUSH, MNONE(), rbp },
-        { MachineOpcode::MOV, rbp, rsp }
-    });
-
-    // The RET marker becomes the frame teardown. Built here because a fixed
-    // register only exists once the register table does, and before liveness so
-    // the teardown is part of the stream the allocator reasons about.
-    const ir::Type w32 = {ir::Type::Kind::INT, ir::Type::Width::W32};
-    const MachineOperand eax = PREG(&x86.getReg("EAX"), w32);
-    for (MachineBlock& block: fct.blocks()) {
-        std::vector<MachineInstruction>& instrs = block.instrs();
-        for (std::size_t k = 0; k < instrs.size(); ++k) {
-            if (instrs[k].m_op != MachineOpcode::RET) {
-                continue;
-            }
-            std::vector<MachineInstruction> tail;
-            tail.push_back({ MachineOpcode::XOR, eax, eax });
-            tail.push_back({ MachineOpcode::POP, rbp, MNONE() });
-            tail.push_back({ MachineOpcode::RET, MNONE(), MNONE() });
-            const auto at = instrs.erase(instrs.begin() + static_cast<std::ptrdiff_t>(k));
-            instrs.insert(at, tail.begin(), tail.end());
-            k += tail.size() - 1;
-        }
-    }
-
     // Gives where each block starts as if
     // you concatenated all the blocks' instruction vectors into one list in layout order.
     std::vector<std::size_t> bases;
