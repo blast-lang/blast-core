@@ -97,9 +97,27 @@ MachineOperand X86::lowerOperand(MachineFunction& mfct, ir::Operand op) {
     }
 }
 
-void allocate(MachineFunction& fct, const RegisterAllocator& regs);
 
-RegisterAllocator::RegisterAllocator(X86& x86) {
+void X86::addRegister(Register r) {
+    this->m_registers.push_back(std::move(r));
+    // The key views the label stored in the vector, not the moved-from argument
+    const Register& stored = this->m_registers.back();
+    this->m_regnames[stored.label()] = stored.id();
+}
+
+ir::ValueId X86::getRegId(const std::string& name) {
+    const auto it = this->m_regnames.find(name);
+    if (it == this->m_regnames.end()) {
+        throw CodegenError("[X86] Unknown register '" + name + "'");
+    }
+    return it->second;
+}
+
+const Register& X86::getReg(const std::string& name) {
+    return this->m_registers[this->getRegId(name)];
+}
+
+X86::X86(): m_registers(), m_regnames() {
     // General purpose
     Register RAX(1, "RAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W64}, RegClass::GP, 0, false, true);
     Register EAX(2, "EAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W32}, RegClass::GP, 0, false, true);
@@ -345,183 +363,170 @@ RegisterAllocator::RegisterAllocator(X86& x86) {
 
 
     this->m_registers.reserve(125);
-    this->m_registers.push_back(Register(0, "NONE", ir::VOID(), RegClass::GP, 0, false, false));
-    this->m_registers.push_back(std::move(RAX));
-    this->m_registers.push_back(std::move(EAX));
-    this->m_registers.push_back(std::move(AX));
-    this->m_registers.push_back(std::move(AH));
-    this->m_registers.push_back(std::move(AL));
-    this->m_registers.push_back(std::move(RCX));
-    this->m_registers.push_back(std::move(ECX));
-    this->m_registers.push_back(std::move(CX));
-    this->m_registers.push_back(std::move(CH));
-    this->m_registers.push_back(std::move(CL));
-    this->m_registers.push_back(std::move(RDX));
-    this->m_registers.push_back(std::move(EDX));
-    this->m_registers.push_back(std::move(DX));
-    this->m_registers.push_back(std::move(DH));
-    this->m_registers.push_back(std::move(DL));
-    this->m_registers.push_back(std::move(RBX));
-    this->m_registers.push_back(std::move(EBX));
-    this->m_registers.push_back(std::move(BX));
-    this->m_registers.push_back(std::move(BH));
-    this->m_registers.push_back(std::move(BL));
-    this->m_registers.push_back(std::move(RSP));
-    this->m_registers.push_back(std::move(ESP));
-    this->m_registers.push_back(std::move(SP));
-    this->m_registers.push_back(std::move(SPL));
-    this->m_registers.push_back(std::move(RBP));
-    this->m_registers.push_back(std::move(EBP));
-    this->m_registers.push_back(std::move(BP));
-    this->m_registers.push_back(std::move(BPL));
-    this->m_registers.push_back(std::move(RSI));
-    this->m_registers.push_back(std::move(ESI));
-    this->m_registers.push_back(std::move(SI));
-    this->m_registers.push_back(std::move(SIL));
-    this->m_registers.push_back(std::move(RDI));
-    this->m_registers.push_back(std::move(EDI));
-    this->m_registers.push_back(std::move(DI));
-    this->m_registers.push_back(std::move(DIL));
-    this->m_registers.push_back(std::move(R8));
-    this->m_registers.push_back(std::move(R8D));
-    this->m_registers.push_back(std::move(R8W));
-    this->m_registers.push_back(std::move(R8B));
-    this->m_registers.push_back(std::move(R9));
-    this->m_registers.push_back(std::move(R9D));
-    this->m_registers.push_back(std::move(R9W));
-    this->m_registers.push_back(std::move(R9B));
-    this->m_registers.push_back(std::move(R10));
-    this->m_registers.push_back(std::move(R10D));
-    this->m_registers.push_back(std::move(R10W));
-    this->m_registers.push_back(std::move(R10B));
-    this->m_registers.push_back(std::move(R11));
-    this->m_registers.push_back(std::move(R11D));
-    this->m_registers.push_back(std::move(R11W));
-    this->m_registers.push_back(std::move(R11B));
-    this->m_registers.push_back(std::move(R12));
-    this->m_registers.push_back(std::move(R12D));
-    this->m_registers.push_back(std::move(R12W));
-    this->m_registers.push_back(std::move(R12B));
-    this->m_registers.push_back(std::move(R13));
-    this->m_registers.push_back(std::move(R13D));
-    this->m_registers.push_back(std::move(R13W));
-    this->m_registers.push_back(std::move(R13B));
-    this->m_registers.push_back(std::move(R14));
-    this->m_registers.push_back(std::move(R14D));
-    this->m_registers.push_back(std::move(R14W));
-    this->m_registers.push_back(std::move(R14B));
-    this->m_registers.push_back(std::move(R15));
-    this->m_registers.push_back(std::move(R15D));
-    this->m_registers.push_back(std::move(R15W));
-    this->m_registers.push_back(std::move(R15B));
-    this->m_registers.push_back(std::move(ZMM0));
-    this->m_registers.push_back(std::move(YMM0));
-    this->m_registers.push_back(std::move(XMM0));
-    this->m_registers.push_back(std::move(ZMM1));
-    this->m_registers.push_back(std::move(YMM1));
-    this->m_registers.push_back(std::move(XMM1));
-    this->m_registers.push_back(std::move(ZMM2));
-    this->m_registers.push_back(std::move(YMM2));
-    this->m_registers.push_back(std::move(XMM2));
-    this->m_registers.push_back(std::move(ZMM3));
-    this->m_registers.push_back(std::move(YMM3));
-    this->m_registers.push_back(std::move(XMM3));
-    this->m_registers.push_back(std::move(ZMM4));
-    this->m_registers.push_back(std::move(YMM4));
-    this->m_registers.push_back(std::move(XMM4));
-    this->m_registers.push_back(std::move(ZMM5));
-    this->m_registers.push_back(std::move(YMM5));
-    this->m_registers.push_back(std::move(XMM5));
-    this->m_registers.push_back(std::move(ZMM6));
-    this->m_registers.push_back(std::move(YMM6));
-    this->m_registers.push_back(std::move(XMM6));
-    this->m_registers.push_back(std::move(ZMM7));
-    this->m_registers.push_back(std::move(YMM7));
-    this->m_registers.push_back(std::move(XMM7));
-    this->m_registers.push_back(std::move(ZMM8));
-    this->m_registers.push_back(std::move(YMM8));
-    this->m_registers.push_back(std::move(XMM8));
-    this->m_registers.push_back(std::move(ZMM9));
-    this->m_registers.push_back(std::move(YMM9));
-    this->m_registers.push_back(std::move(XMM9));
-    this->m_registers.push_back(std::move(ZMM10));
-    this->m_registers.push_back(std::move(YMM10));
-    this->m_registers.push_back(std::move(XMM10));
-    this->m_registers.push_back(std::move(ZMM11));
-    this->m_registers.push_back(std::move(YMM11));
-    this->m_registers.push_back(std::move(XMM11));
-    this->m_registers.push_back(std::move(ZMM12));
-    this->m_registers.push_back(std::move(YMM12));
-    this->m_registers.push_back(std::move(XMM12));
-    this->m_registers.push_back(std::move(ZMM13));
-    this->m_registers.push_back(std::move(YMM13));
-    this->m_registers.push_back(std::move(XMM13));
-    this->m_registers.push_back(std::move(ZMM14));
-    this->m_registers.push_back(std::move(YMM14));
-    this->m_registers.push_back(std::move(XMM14));
-    this->m_registers.push_back(std::move(ZMM15));
-    this->m_registers.push_back(std::move(YMM15));
-    this->m_registers.push_back(std::move(XMM15));
-    this->m_registers.push_back(std::move(K0));
-    this->m_registers.push_back(std::move(K1));
-    this->m_registers.push_back(std::move(K2));
-    this->m_registers.push_back(std::move(K3));
-    this->m_registers.push_back(std::move(K4));
-    this->m_registers.push_back(std::move(K5));
-    this->m_registers.push_back(std::move(K6));
-    this->m_registers.push_back(std::move(K7));
+    this->addRegister(Register(0, "NONE", ir::VOID(), RegClass::GP, 0, false, false));
+    this->addRegister(std::move(RAX));
+    this->addRegister(std::move(EAX));
+    this->addRegister(std::move(AX));
+    this->addRegister(std::move(AH));
+    this->addRegister(std::move(AL));
+    this->addRegister(std::move(RCX));
+    this->addRegister(std::move(ECX));
+    this->addRegister(std::move(CX));
+    this->addRegister(std::move(CH));
+    this->addRegister(std::move(CL));
+    this->addRegister(std::move(RDX));
+    this->addRegister(std::move(EDX));
+    this->addRegister(std::move(DX));
+    this->addRegister(std::move(DH));
+    this->addRegister(std::move(DL));
+    this->addRegister(std::move(RBX));
+    this->addRegister(std::move(EBX));
+    this->addRegister(std::move(BX));
+    this->addRegister(std::move(BH));
+    this->addRegister(std::move(BL));
+    this->addRegister(std::move(RSP));
+    this->addRegister(std::move(ESP));
+    this->addRegister(std::move(SP));
+    this->addRegister(std::move(SPL));
+    this->addRegister(std::move(RBP));
+    this->addRegister(std::move(EBP));
+    this->addRegister(std::move(BP));
+    this->addRegister(std::move(BPL));
+    this->addRegister(std::move(RSI));
+    this->addRegister(std::move(ESI));
+    this->addRegister(std::move(SI));
+    this->addRegister(std::move(SIL));
+    this->addRegister(std::move(RDI));
+    this->addRegister(std::move(EDI));
+    this->addRegister(std::move(DI));
+    this->addRegister(std::move(DIL));
+    this->addRegister(std::move(R8));
+    this->addRegister(std::move(R8D));
+    this->addRegister(std::move(R8W));
+    this->addRegister(std::move(R8B));
+    this->addRegister(std::move(R9));
+    this->addRegister(std::move(R9D));
+    this->addRegister(std::move(R9W));
+    this->addRegister(std::move(R9B));
+    this->addRegister(std::move(R10));
+    this->addRegister(std::move(R10D));
+    this->addRegister(std::move(R10W));
+    this->addRegister(std::move(R10B));
+    this->addRegister(std::move(R11));
+    this->addRegister(std::move(R11D));
+    this->addRegister(std::move(R11W));
+    this->addRegister(std::move(R11B));
+    this->addRegister(std::move(R12));
+    this->addRegister(std::move(R12D));
+    this->addRegister(std::move(R12W));
+    this->addRegister(std::move(R12B));
+    this->addRegister(std::move(R13));
+    this->addRegister(std::move(R13D));
+    this->addRegister(std::move(R13W));
+    this->addRegister(std::move(R13B));
+    this->addRegister(std::move(R14));
+    this->addRegister(std::move(R14D));
+    this->addRegister(std::move(R14W));
+    this->addRegister(std::move(R14B));
+    this->addRegister(std::move(R15));
+    this->addRegister(std::move(R15D));
+    this->addRegister(std::move(R15W));
+    this->addRegister(std::move(R15B));
+    this->addRegister(std::move(ZMM0));
+    this->addRegister(std::move(YMM0));
+    this->addRegister(std::move(XMM0));
+    this->addRegister(std::move(ZMM1));
+    this->addRegister(std::move(YMM1));
+    this->addRegister(std::move(XMM1));
+    this->addRegister(std::move(ZMM2));
+    this->addRegister(std::move(YMM2));
+    this->addRegister(std::move(XMM2));
+    this->addRegister(std::move(ZMM3));
+    this->addRegister(std::move(YMM3));
+    this->addRegister(std::move(XMM3));
+    this->addRegister(std::move(ZMM4));
+    this->addRegister(std::move(YMM4));
+    this->addRegister(std::move(XMM4));
+    this->addRegister(std::move(ZMM5));
+    this->addRegister(std::move(YMM5));
+    this->addRegister(std::move(XMM5));
+    this->addRegister(std::move(ZMM6));
+    this->addRegister(std::move(YMM6));
+    this->addRegister(std::move(XMM6));
+    this->addRegister(std::move(ZMM7));
+    this->addRegister(std::move(YMM7));
+    this->addRegister(std::move(XMM7));
+    this->addRegister(std::move(ZMM8));
+    this->addRegister(std::move(YMM8));
+    this->addRegister(std::move(XMM8));
+    this->addRegister(std::move(ZMM9));
+    this->addRegister(std::move(YMM9));
+    this->addRegister(std::move(XMM9));
+    this->addRegister(std::move(ZMM10));
+    this->addRegister(std::move(YMM10));
+    this->addRegister(std::move(XMM10));
+    this->addRegister(std::move(ZMM11));
+    this->addRegister(std::move(YMM11));
+    this->addRegister(std::move(XMM11));
+    this->addRegister(std::move(ZMM12));
+    this->addRegister(std::move(YMM12));
+    this->addRegister(std::move(XMM12));
+    this->addRegister(std::move(ZMM13));
+    this->addRegister(std::move(YMM13));
+    this->addRegister(std::move(XMM13));
+    this->addRegister(std::move(ZMM14));
+    this->addRegister(std::move(YMM14));
+    this->addRegister(std::move(XMM14));
+    this->addRegister(std::move(ZMM15));
+    this->addRegister(std::move(YMM15));
+    this->addRegister(std::move(XMM15));
+    this->addRegister(std::move(K0));
+    this->addRegister(std::move(K1));
+    this->addRegister(std::move(K2));
+    this->addRegister(std::move(K3));
+    this->addRegister(std::move(K4));
+    this->addRegister(std::move(K5));
+    this->addRegister(std::move(K6));
+    this->addRegister(std::move(K7));
+}
+
+
+void allocate(MachineFunction& fct, X86& x86);
+
+RegisterAllocator::RegisterAllocator(X86& x86) {
 
     // Building successors
     for (MachineFunction& f: x86.fcts()){
-        allocate(f, *this);
+        allocate(f, x86);
     }
-}
-
-const Register& RegisterAllocator::reg(std::string_view label) const {
-    for (const Register& r: this->m_registers) {
-        if (r.label() == label) {
-            return r;
-        }
-    }
-    throw CodegenError("[RegisterAllocator] Unknown register '" + std::string(label) + "'");
 }
 
 
 // https://cse.sc.edu/~mgv/csce531sp20/notes/mogensen_Ch8_Slides_register-allocation.pdf
-void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
+void allocate(MachineFunction& fct, X86& x86) {
     // The frame setup goes in before liveness runs, so the pass sees the same
     // instruction stream the emitter will print.
     const ir::Type w64 = {ir::Type::Kind::INT, ir::Type::Width::W64};
-    const MachineOperand rbp = PREG(&regs.reg("RBP"), w64);
-    const MachineOperand rsp = PREG(&regs.reg("RSP"), w64);
+    const MachineOperand rbp = PREG(&x86.getReg("RBP"), w64);
+    const MachineOperand rsp = PREG(&x86.getReg("RSP"), w64);
     std::vector<MachineInstruction>& entry = fct.blocks()[0].instrs();
     entry.insert(entry.begin(), {
-        { MachineOpcode::PUSH, rbp, MNONE() },
+        { MachineOpcode::PUSH, MNONE(), rbp },
         { MachineOpcode::MOV, rbp, rsp }
     });
 
-    // The RET marker becomes the printf call the runtime still stands in for,
-    // followed by the frame teardown. Built here because a fixed register only
-    // exists once the register table does, and before liveness so the CALL is
-    // part of the stream the allocator reasons about.
+    // The RET marker becomes the frame teardown. Built here because a fixed
+    // register only exists once the register table does, and before liveness so
+    // the teardown is part of the stream the allocator reasons about.
     const ir::Type w32 = {ir::Type::Kind::INT, ir::Type::Width::W32};
-    const MachineOperand rsi = PREG(&regs.reg("RSI"), w64);
-    const MachineOperand rdi = PREG(&regs.reg("RDI"), w64);
-    const MachineOperand eax = PREG(&regs.reg("EAX"), w32);
+    const MachineOperand eax = PREG(&x86.getReg("EAX"), w32);
     for (MachineBlock& block: fct.blocks()) {
         std::vector<MachineInstruction>& instrs = block.instrs();
         for (std::size_t k = 0; k < instrs.size(); ++k) {
             if (instrs[k].m_op != MachineOpcode::RET) {
                 continue;
             }
-            const MachineOperand value = instrs[k].m_src;
             std::vector<MachineInstruction> tail;
-            if (value.m_kind != MachineOperand::Kind::NONE) {
-                tail.push_back({ MachineOpcode::MOV, rsi, value });
-            }
-            tail.push_back({ MachineOpcode::LEA, rdi, RIP(".Lfmt", w64) });
-            tail.push_back({ MachineOpcode::XOR, eax, eax });
-            tail.push_back({ MachineOpcode::CALL, SYM("printf", ir::VOID()), MNONE() });
             tail.push_back({ MachineOpcode::XOR, eax, eax });
             tail.push_back({ MachineOpcode::POP, rbp, MNONE() });
             tail.push_back({ MachineOpcode::RET, MNONE(), MNONE() });
@@ -624,7 +629,7 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
         }
         // A callee may return having trashed every caller-saved register
         if (instr->m_op == MachineOpcode::CALL) {
-            for (const Register& r: regs.registers()) {
+            for (const Register& r: x86.registers()) {
                 if (r.callerSaved()) {
                     clobber[instr].insert(r.id());
                 }
@@ -726,7 +731,7 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
     // 2) Are the same type
     // 3) Which with is >= of the operand's witdh
     for (ir::ValueId x: operands) {
-        for(const Register& r: regs.registers()) {
+        for(const Register& r: x86.registers()) {
             if(
                 !r.reserved() &&
                 r.type().m_kind == types[x].m_kind &&
@@ -802,10 +807,10 @@ void allocate(MachineFunction& fct, const RegisterAllocator& regs) {
     for (auto it = order.begin(); it != order.end(); ++it) {
         MachineInstruction* i = *it;
         if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
-            i->m_src = PREG(&regs.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
+            i->m_src = PREG(&x86.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
         }
         if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
-            i->m_dst = PREG(&regs.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
+            i->m_dst = PREG(&x86.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
         }
     }
 }

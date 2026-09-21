@@ -373,7 +373,16 @@ std::string attOperandText(const codegen::MachineOperand& op) {
 std::string attInstructionText(const codegen::MachineInstruction& instr) {
     const std::string op = mnemonic(instr.m_op);
     if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::NONE) {
-        return op;
+        if (instr.m_src.m_kind == codegen::MachineOperand::Kind::NONE) {
+            return op;
+        }
+        // An instruction that only reads, like push, takes its suffix from the
+        // operand it reads.
+        std::string read = op;
+        if (instr.m_src.m_kind == codegen::MachineOperand::Kind::PREG) {
+            read += widthSuffix(instr.m_src.m_type);
+        }
+        return read + " " + attOperandText(instr.m_src);
     }
     std::string head = op;
     if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::PREG) {
@@ -464,10 +473,6 @@ std::string dump(const codegen::X86& x86) {
 std::string emit(const codegen::X86& x86) {
     std::string out =
         "    .section .note.GNU-stack,\"\",@progbits\n"
-        "\n"
-        "    .section .rodata\n"
-        ".Lfmt:\n"
-        "    .string \"result = %ld\\n\"\n"
         "\n"
         "    .text\n"
         "    .globl main\n"

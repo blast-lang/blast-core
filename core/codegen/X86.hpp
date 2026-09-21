@@ -241,34 +241,37 @@ private:
     std::vector<MachineFunction> m_fcts;
 
 public:
-    X86() = default;
+    X86();
 
     std::vector<MachineFunction>& fcts() { return this->m_fcts; }
     const std::vector<MachineFunction>& fcts() const { return this->m_fcts; }
 
     void lower(const ir::Module& mod);
 
+    const std::vector<Register>& registers() const { return this->m_registers; }
+    ir::ValueId getRegId(const std::string& name);
+    const Register& getReg(const std::string& name);
+
 private:
     void lowerFct(const ir::Function& fct);
     void lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const std::vector<bool>& reachable);
     void lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir::Instruction& inst);
-
     MachineOperand lowerOperand(MachineFunction& mfct, ir::Operand op);
+
+private:
+    void addRegister(Register r);
+
+private:
+    std::vector<Register> m_registers;
+    std::unordered_map<std::string_view, ir::ValueId> m_regnames;
 };
 
 // m_registers is indexed by Register::id(), so slot 0 is a placeholder standing
 // for 'no register'. It is never resized after construction: MachineOperand
 // holds pointers into it.
 class RegisterAllocator {
-private:
-    std::vector<Register> m_registers;
-
 public:
     RegisterAllocator(X86& x86);
-
-    const std::vector<Register>& registers() const { return this->m_registers; }
-    const Register& reg(ir::ValueId id) const { return this->m_registers[id]; }
-    const Register& reg(std::string_view label) const;
 };
 
 
