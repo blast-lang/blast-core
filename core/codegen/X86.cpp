@@ -39,6 +39,12 @@ void X86::lowerFct(const ir::Function& fct) {
         order.push_back(b.id());
     };
     visitBlock(visitBlock, entry);
+    // Every block exists before any instruction is lowered: a jump in the entry
+    // block names a label that only gets lowered later.
+    for (auto it = order.rbegin(); it != order.rend(); ++it) {
+        const ir::BasicBlock& b = fct.getBlock(*it);
+        mfct.addBlock(b.id(), mfct.name() + "__" + b.label());
+    }
     // Now, lower in postorder
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         this->lowerBlock(mfct, fct.getBlock(*it), visited);
@@ -64,7 +70,7 @@ void X86::lowerFct(const ir::Function& fct) {
 }
 
 void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const std::vector<bool>& reachable) {
-    MachineBlock& mblock = mfct.addBlock(block.id(), mfct.name() + "__" + block.label());
+    MachineBlock& mblock = mfct.getBlock(block.id());
 
     for (ir::BlockId pred: block.preds()) {
         if (reachable[pred]) {
@@ -73,6 +79,7 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const s
     }
 
     for (const ir::Instruction& inst: block.instrs()) {
+        // if isTerminator(inst.op()) -> handle the phis of the block !!!
         this->lowerInstruction(mfct, mblock, inst);
     }
 }
@@ -91,13 +98,45 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
             mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
             mblock.addInstruction(MachineOpcode::IMUL, dst, rhs);
             break;
+        /*
+        a > b -> a - b > 0 -> cmp a, b then following instructions will use those flags
+        If is usualy followed by jg and jmp: https://www.aldeid.com/wiki/X86-assembly/Instructions/jg
+        if (a > b) { TOTO } TATA
+        cmp b, a
+        jg TOTO ---> If flag goto TOTO, if not continue
+        JMP TATA
+
+        cmp a, b computes a - b, throws the result away, and sets four flags: 
+        ZF (zero, the result was 0), 
+        SF (sign, the result's top bit is 1), 
+        OF (overflow, the signed subtraction overflowed), 
+        CF (carry, the unsigned subtraction borrowed).
+        */
+        case ir::Opcode::GT:
+            mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
+            mblock.addInstruction(MachineOpcode::CMP, dst, rhs);
+            break;
+        case ir::Opcode::CBR:
+            // CBR %v L1 L2 becomes
+            // jg L1
+            // jmp L2
+            // TODO: JG is hardcoded and the flags are assumed to come from the
+            // instruction right before. Track which comparison defines
+            // inst.result() and pick the suffix from its opcode.
+            mblock.addInstruction(MachineOpcode::JG, lhs, MNONE());
+            mblock.addInstruction(MachineOpcode::JMP, rhs, MNONE());
+            break;
         case ir::Opcode::RET:
             // The returned value sits in m_src so liveness reads it as a use:
             // as a destination it would look like a write and kill the value.
             mblock.addInstruction(MachineOpcode::RET, MNONE(), lhs);
             break;
-        default:
-            throw CodegenError("[X86] Unsupported opcode");
+        // Unconditionnal jump
+        case ir::Opcode::BR:
+            mblock.addInstruction(MachineOpcode::JMP, lhs, MNONE());
+            break;
+        /*default:
+            throw CodegenError("[X86] Unsupported opcode");*/
     }
 }
 
@@ -109,6 +148,9 @@ MachineOperand X86::lowerOperand(MachineFunction& mfct, ir::Operand op) {
             return VREG(op.m_value, op.m_type);
         case ir::Operand::Kind::LITERAL:
             return LIT(op.m_lit, op.m_type);
+        case ir::Operand::Kind::BLOCK:
+            // A jump target is just the label of the block it was lowered to.
+            return SYM(mfct.getBlock(op.m_block).label(), op.m_type);
         default:
             throw CodegenError("[X86] Unsupported operand kind");
     }

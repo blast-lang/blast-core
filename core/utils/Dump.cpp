@@ -301,6 +301,9 @@ std::string machineOpcodeName(codegen::MachineOpcode op) {
         case codegen::MachineOpcode::ADD:  return "add";
         case codegen::MachineOpcode::IMUL: return "imul";
         case codegen::MachineOpcode::XOR:  return "xor";
+        case codegen::MachineOpcode::CMP:  return "cmp";
+        case codegen::MachineOpcode::JMP:  return "jmp";
+        case codegen::MachineOpcode::JG:   return "jg";
         case codegen::MachineOpcode::CALL: return "call";
         case codegen::MachineOpcode::PUSH: return "push";
         case codegen::MachineOpcode::POP:  return "pop";
