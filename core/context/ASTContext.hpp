@@ -23,6 +23,13 @@ public:
     // naming it; this is for the few places that need the scope itself.
     Scope& coreScope() { return this->m_core; }
 
+    // Nested scopes outlive the resolver that opens them: a Scope owns the
+    // Symbols declared in it, and nodes keep pointing at those symbols.
+    Scope& newScope(Scope::Kind kind, Scope* parent) {
+        this->m_scopes.push_back(std::make_unique<Scope>(kind, this->m_next_scope_id++, parent));
+        return *this->m_scopes.back();
+    }
+
     void setNodeType(const parser::ASTNode* node, Type* type) {
         this->m_node_types.emplace(node->id(), type);
     }
@@ -46,6 +53,10 @@ private:
     Scope m_core;
     // Translation unit to be contextualized
     Scope m_main;
+    // Scopes nested under m_main, held by pointer so growing the vector never
+    // moves a Scope a Symbol or a child scope already points at
+    std::vector<std::unique_ptr<Scope>> m_scopes;
+    ScopeId m_next_scope_id;
     // Unique set of Types, indexed by TypeId
     std::vector<std::unique_ptr<Type>> m_types;
     // Map nodes to their deduced types

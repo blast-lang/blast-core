@@ -152,6 +152,15 @@ inline Operand REGISTER(ValueId v, Type t = INT(Type::Width::W64)) {
 }
 
 
+inline Operand BLOCK(BlockId b) {
+    return {
+        .m_kind = Operand::Kind::BLOCK,
+        .m_type = VOID(),
+        .m_block = b
+    };
+}
+
+
 inline Operand FUNCTION(FctId f) {
     return {
         .m_kind = Operand::Kind::FUNCTION,
@@ -367,9 +376,10 @@ public:
         this->addBlock("entry");
     }
 
-    void addBlock(std::string label) {
-        BasicBlock b(this->m_blocks.size(), std::move(label));
-        this->m_blocks.push_back(std::move(b));
+    BlockId addBlock(std::string label) {
+        const BlockId id = this->m_blocks.size();
+        this->m_blocks.push_back(BasicBlock(id, std::move(label)));
+        return id;
     }
 
     FctId id() const { return this->m_id; }
@@ -427,6 +437,17 @@ public:
         return this->m_call_args[idx];
     }
 
+    // CBR spends lhs and rhs on its two targets, so the condition it reads
+    // rides in m_result. Bypasses addInstruction, which forces NONE there for
+    // every terminator.
+    Operand addCBR(BlockId bid, Operand cond, BlockId then_blk, BlockId else_blk) {
+        return this->getBlock(bid).addInstruction(cond, BLOCK(then_blk), BLOCK(else_blk), Opcode::CBR);
+    }
+
+    Operand addBR(BlockId bid, BlockId target) {
+        return this->getBlock(bid).addInstruction(NONE(), BLOCK(target), NONE(), Opcode::BR);
+    }
+
     Operand addCall(BlockId bid, Operand callee, std::vector<Operand> args, Type ret) {
         const Operand result = ret == VOID() ? NONE() : REGISTER(this->newValue(), ret);
         const Operand idx = LITERAL(static_cast<std::uint32_t>(this->m_call_args.size()));
@@ -479,10 +500,11 @@ public:
     Operand visitAssign(const parser::Assign& node);
     Operand visitVarDecl(const parser::VarDecl& node);
     Operand visitExprStmt(const parser::ExprStmt& node);
+    Operand visitIfStmt(const parser::IfStmt& node);
+    Operand visitBlock(const parser::Block& node);
     Operand visitTranslationUnit(const parser::TranslationUnit& node);
 
 public:
-
     SSAIR(context::ASTContext& ctx):
         m_current_fct(0),
         m_current_block(0),
@@ -505,25 +527,11 @@ public:
         return this->currentFct().addInstruction(this->m_current_block, lhs, rhs, op);
     }
 
-    void setLKO(context::Symbol* s, const Operand& o) {
-        if (s) {
-            this->m_lko.insert_or_assign(
-                std::make_pair(s->id(), this->currentBlock().id()), o
-            );
-        }
-    }
+    void setLKO(context::Symbol* s, const Operand& o);
 
-    Operand getLKO(context::Symbol* s) {
-        if (s) {
-            const auto p = std::make_pair(s->id(), this->currentBlock().id());
-            auto it = this->m_lko.find(p);
-            if (it == this->m_lko.end()) {
-                return NONE();
-            }
-            return it->second;
-        }
-        return NONE();
-    }
+    // The binding for 's' as seen from 'bid': the one recorded there, else the
+    // one its predecessors carry, else a phi picking between them.
+    Operand getLKO(context::Symbol* s, BlockId bid);
 
 private:
     FctId m_current_fct;

@@ -86,6 +86,8 @@ protected:
     void parseStmt();
     void parseDecl();
     void parseVarDecl();
+    void parseIfStmt();
+    void parseBlock();
 
     // Parsing Expressions
     void parseExpr();

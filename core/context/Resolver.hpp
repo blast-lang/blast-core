@@ -21,6 +21,8 @@ public:
     void visitBinaryExpr(const parser::BinaryExpr& node);
     void visitAssign(const parser::Assign& node);
     void visitExprStmt(const parser::ExprStmt& node);
+    void visitIfStmt(const parser::IfStmt& node);
+    void visitBlock(const parser::Block& node);
     void visitTranslationUnit(const parser::TranslationUnit& node);
 };
 

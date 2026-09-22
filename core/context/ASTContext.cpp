@@ -3,8 +3,10 @@
 namespace blast::core::context {
 
 ASTContext::ASTContext():
-        m_core(Scope::Kind::Module),
-        m_main(Scope::Kind::Module),
+        m_core(Scope::Kind::Module, 0),
+        m_main(Scope::Kind::Module, 1),
+        m_scopes(),
+        m_next_scope_id(2),
         m_types(),
         m_node_types(),
         m_node_symbls()

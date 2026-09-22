@@ -39,6 +39,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA op_add             = SA('+');
     Tokenizer::SA op_mul             = SA('*');
     Tokenizer::SA op_assign          = SA('=');
+    Tokenizer::SA op_gt              = SA('>');
     // Type annotation: '::' (Julia-style, e.g. a::Int)
     Tokenizer::SA colon_colon        = SA(':') + SA(':');
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
@@ -69,6 +70,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     // Operators
     this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_gt,             0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_assign,         0,      Tokenizer::TokenKind::ASSIGN});
     this->m_rules.push_back({colon_colon,       0,      Tokenizer::TokenKind::COLON_COLON});
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*

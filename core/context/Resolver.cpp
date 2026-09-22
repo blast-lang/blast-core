@@ -62,6 +62,25 @@ void ScopeResolver::visitAssign(const parser::Assign& node) {
     this->visit(node.target());
 }
 
+void ScopeResolver::visitIfStmt(const parser::IfStmt& node) {
+    this->visit(node.cond());
+    this->visit(node.thenBranch());
+    if (node.hasElse()) {
+        this->visit(node.elseBranch());
+    }
+}
+
+void ScopeResolver::visitBlock(const parser::Block& node) {
+    // A block is a new scope
+    Scope& block = this->m_ctx->newScope(Scope::Kind::Block, this->m_current_scope);
+    Scope* save = this->m_current_scope;
+    this->m_current_scope = &block;
+    for (const auto& stmt: node.stmts()){
+        this->visit(stmt.get());
+    }
+    this->m_current_scope = save;
+}
+
 void TypeResolver::run(const parser::TranslationUnit& unit) {
     this->visit(&unit);
 }

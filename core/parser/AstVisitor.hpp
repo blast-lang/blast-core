@@ -27,8 +27,7 @@ public:
     R visitAssign(const Assign& n)                     { return self().visitEmpty(); }
     R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
     R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
-    // Restore alongside IfStmt in Ast.hpp:
-    // R visitIfStmt(const IfStmt& n)                  { return self().visitEmpty(); }
+    R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
     R visitContinueStmt(const ContinueStmt& n)         { return self().visitEmpty(); }
     R visitBlock(const Block& n)                       { return self().visitEmpty(); }
     R visitTranslationUnit(const TranslationUnit& n)   { return self().visitEmpty(); }
@@ -72,9 +71,8 @@ public:
             // Statements
             case Kind::ExprStmt:
                 return self().visitExprStmt(as<ExprStmt>(node));
-            // No node class yet -- see the commented IfStmt in Ast.hpp.
             case Kind::IfStmt:
-                return self().visitEmpty();
+                return self().visitIfStmt(as<IfStmt>(node));
             case Kind::ContinueStmt:
                 return self().visitContinueStmt(as<ContinueStmt>(node));
             case Kind::Block:

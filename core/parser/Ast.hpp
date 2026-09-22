@@ -199,7 +199,7 @@ private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
 
-/*
+
 class IfStmt: public Stmt {
 public:
     // elseBranch may be null.
@@ -223,7 +223,6 @@ private:
     std::unique_ptr<Block> m_then;
     std::unique_ptr<Stmt> m_else;
 };
-*/
 
 class ContinueStmt : public Stmt {
 public:

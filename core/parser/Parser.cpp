@@ -13,6 +13,7 @@ int bindingPower(const SimpleParser::Token& t) {
         case SimpleParser::TokenKind::BIN_OP:             // +,* differentiated by value
             if (t.m_value == "*" ) return 20;
             if (t.m_value == "+" ) return 10;
+            if (t.m_value == ">" ) return 5;
             throw ParseError("[Expr] Unknown binary operator '" + t.m_value + "'", 0);
         default:
             throw ParseError("[Expr] Not an operator", 0);
@@ -23,7 +24,14 @@ void SimpleParser::parseStmt() {
     if (this->currentToken().m_kind == TokenKind::IDENDIFIER &&
         this->nextToken().m_kind == TokenKind::COLON_COLON) {
         this->parseVarDecl();
-    } else {
+    } else if(
+        this->currentToken().m_kind == TokenKind::IF_STMT
+    ) {
+        this->parseIfStmt();
+        // Return here as we do not expect ';' after an if stmt
+        return;
+    }
+    else {
         this->parseExpr();
     }
 
@@ -66,6 +74,38 @@ void SimpleParser::parseVarDecl() {
     }
 
     this->push(std::make_unique<VarDecl>(name->name(), std::move(type), std::move(init)));
+    return;
+}
+
+
+void SimpleParser::parseIfStmt() {
+    // Parse the condition as expression
+    this->advance();
+    this->parseExpr();
+    std::unique_ptr<Expr> cond = this->popAs<Expr>();
+    std::unique_ptr<Block> if_block = nullptr;
+    // Now parse 'if' block content
+    if (this->currentToken().m_kind == TokenKind::OPEN_CURLBRAC) {
+        this->parseBlock();
+        if_block = this->popAs<Block>();
+    }
+    // Push the if statement onto the stack
+    this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), nullptr));
+    return;
+}
+
+void SimpleParser::parseBlock() {
+    std::unique_ptr<Block> block = std::make_unique<Block>();
+    // Consume opening bracket
+    this->advance();
+    while(this->currentToken().m_kind != TokenKind::CLOSE_CURLBRAC) {
+        this->parseStmt();
+        block->add(this->popAs<Stmt>());
+    }
+    // Consume closing bracket
+    this->advance();
+    // Push the block onto the stack
+    this->push(std::move(block));
     return;
 }
 

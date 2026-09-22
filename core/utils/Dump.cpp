@@ -43,14 +43,13 @@ public:
     std::string visitExprStmt(const ExprStmt& n) {
         return "(expr-stmt " + visit(n.expr()) + ")";
     }
-    // Restore alongside IfStmt in Ast.hpp:
-    // std::string visitIfStmt(const IfStmt& n) {
-    //     std::string out = "(if " + visit(n.cond()) + " " + visit(n.thenBranch());
-    //     if (n.hasElse()) {
-    //         out += " else " + visit(n.elseBranch());
-    //     }
-    //     return out + ")";
-    // }
+    std::string visitIfStmt(const IfStmt& n) {
+        std::string out = "(if " + visit(n.cond()) + " " + visit(n.thenBranch());
+        if (n.hasElse()) {
+            out += " else " + visit(n.elseBranch());
+        }
+        return out + ")";
+    }
     std::string visitContinueStmt(const ContinueStmt&) {
         return "(continue)";
     }
@@ -112,7 +111,7 @@ public:
     }
     std::string visitAssign(const Assign&)                 { return "Assign"; }
     std::string visitExprStmt(const ExprStmt&)             { return "ExprStmt"; }
-    // std::string visitIfStmt(const IfStmt&)              { return "IfStmt"; }
+    std::string visitIfStmt(const IfStmt&)                 { return "IfStmt"; }
     std::string visitContinueStmt(const ContinueStmt&)     { return "ContinueStmt"; }
     std::string visitBlock(const Block&)                   { return "Block"; }
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
@@ -141,14 +140,13 @@ public:
     std::vector<Child> visitExprStmt(const ExprStmt& n) {
         return {{"", n.expr()}};
     }
-    // Restore alongside IfStmt in Ast.hpp:
-    // std::vector<Child> visitIfStmt(const IfStmt& n) {
-    //     std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.thenBranch()}};
-    //     if (n.hasElse()) {
-    //         children.push_back({"else: ", n.elseBranch()});
-    //     }
-    //     return children;
-    // }
+    std::vector<Child> visitIfStmt(const IfStmt& n) {
+        std::vector<Child> children{{"cond: ", n.cond()}, {"then: ", n.thenBranch()}};
+        if (n.hasElse()) {
+            children.push_back({"else: ", n.elseBranch()});
+        }
+        return children;
+    }
     std::vector<Child> visitVarDecl(const VarDecl& n) {
         std::vector<Child> children;
         if (n.hasType()) {
@@ -237,12 +235,13 @@ std::string typeName(ir::Type t) {
     return "?";
 }
 
-// Blocks are labels, not values: they carry no type worth printing.
-std::string operandText(const ir::Operand& op) {
+// Blocks are labels, not values: they carry no type worth printing. The owning
+// function is what maps the id back to the label the block header prints.
+std::string operandText(const ir::Operand& op, const ir::Function& fn) {
     const std::string type = typeName(op.m_type) + " ";
     switch (op.m_kind) {
         case ir::Operand::Kind::NONE:     return "";
-        case ir::Operand::Kind::BLOCK:    return "block_" + std::to_string(op.m_block);
+        case ir::Operand::Kind::BLOCK:    return fn.getBlock(op.m_block).label();
         case ir::Operand::Kind::REGISTER: return type + "%" + std::to_string(op.m_value);
         case ir::Operand::Kind::LITERAL:
             return type + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
@@ -252,22 +251,39 @@ std::string operandText(const ir::Operand& op) {
 
 // "%0 = ADD %1, 2" -- the result is dropped for instructions that produce no
 // value (the terminators), and an operand left NONE is simply not printed.
-std::string instructionText(const ir::Instruction& instr) {
+std::string instructionText(const ir::Instruction& instr, const ir::Function& fn) {
     std::string text;
-    if (instr.result().m_kind != ir::Operand::Kind::NONE) {
-        text += operandText(instr.result()) + " = ";
+    // CBR reads its result slot instead of defining it, so it prints as a
+    // leading operand rather than as an assignment.
+    if (instr.result().m_kind != ir::Operand::Kind::NONE && instr.op() != ir::Opcode::CBR) {
+        text += operandText(instr.result(), fn) + " = ";
     }
     text += opcodeName(instr.op());
+    if (instr.op() == ir::Opcode::CBR) {
+        text += " " + operandText(instr.result(), fn) + ",";
+    }
     bool has_operand = false;
     if (instr.lhs().m_kind != ir::Operand::Kind::NONE) {
-        text += " " + operandText(instr.lhs());
+        text += " " + operandText(instr.lhs(), fn);
         has_operand = true;
     }
     if (instr.rhs().m_kind != ir::Operand::Kind::NONE) {
-        text += (has_operand ? ", " : " ") + operandText(instr.rhs());
+        text += (has_operand ? ", " : " ") + operandText(instr.rhs(), fn);
     }
     if (!instr.comment().empty()) {
         text += "  // " + instr.comment();
+    }
+    return text;
+}
+
+// "%1 = PHI [entry: i64 1], [if.then: i64 20]" -- one incoming per edge into
+// the block, named by the predecessor it arrives from.
+std::string phiText(const ir::Phi& phi, const ir::Function& fn) {
+    std::string text = operandText(phi.m_result, fn) + " = PHI";
+    for (std::size_t i = 0; i < phi.m_incomings.size(); ++i) {
+        const auto& incoming = phi.m_incomings[i];
+        text += (i > 0 ? ", [" : " [") + fn.getBlock(incoming.first).label()
+              + ": " + operandText(incoming.second, fn) + "]";
     }
     return text;
 }
@@ -424,13 +440,16 @@ std::string dump(const ir::Function& fn) {
         if (i > 0) {
             out += ", ";
         }
-        out += operandText(fn.args()[i]);
+        out += operandText(fn.args()[i], fn);
     }
     out += ") -> " + typeName(fn.ret()) + " {\n";
     for (const ir::BasicBlock& block : fn.blocks()) {
         out += block.label() + ":\n";
+        for (const ir::Phi& phi : block.phis()) {
+            out += "  " + phiText(phi, fn) + "\n";
+        }
         for (const ir::Instruction& instr : block.instrs()) {
-            out += "  " + instructionText(instr) + "\n";
+            out += "  " + instructionText(instr, fn) + "\n";
         }
     }
     out += "}\n";
