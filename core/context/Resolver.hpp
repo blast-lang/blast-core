@@ -20,6 +20,7 @@ public:
     void visitIdentifier(const parser::Identifier& node);
     void visitBinaryExpr(const parser::BinaryExpr& node);
     void visitAssign(const parser::Assign& node);
+    void visitCallExpr(const parser::CallExpr& node);
     void visitExprStmt(const parser::ExprStmt& node);
     void visitIfStmt(const parser::IfStmt& node);
     void visitBlock(const parser::Block& node);
@@ -39,6 +40,7 @@ public:
     const Type* visitIdentifier(const parser::Identifier& node);
     const Type* visitBinaryExpr(const parser::BinaryExpr& node);
     const Type* visitAssign(const parser::Assign& node);
+    const Type* visitCallExpr(const parser::CallExpr& node);
     const Type* visitExprStmt(const parser::ExprStmt& node);
     const Type* visitTranslationUnit(const parser::TranslationUnit& node);
 };

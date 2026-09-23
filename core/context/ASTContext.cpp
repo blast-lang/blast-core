@@ -11,14 +11,23 @@ ASTContext::ASTContext():
         m_node_types(),
         m_node_symbls()
     {
-        // Declate builtins
 
+        //---------------------------
+        // Builtin Types
+        //---------------------------
         // 64-bits signed integer
-        auto int_type = std::make_unique<PrimitiveType>("Int", nullptr, this->m_types.size(), 64);
-        auto int_symbol = this->m_core.declare("Int", Symbol::Kind::Type);
-        int_symbol->setType(int_type.get());
-        this->m_types.push_back(std::move(int_type));
+        auto INT_T = std::make_unique<PrimitiveType>("Int", nullptr, 0, 64);
+        auto INT_S = this->m_core.declare("Int", Symbol::Kind::Type);
+        INT_S->setType(INT_T.get());
         
+        //---------------------------
+        // Builtin Functions
+        //---------------------------
+        this->m_core.declare("print", Symbol::Kind::Function);
+        
+
+        this->m_types.push_back(std::move(INT_T));
+
         // Make 'main' (the unit to be analysed) import all Core symbols by default
         this->m_main.setParent(&this->m_core);
     }

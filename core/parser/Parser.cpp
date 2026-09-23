@@ -155,28 +155,30 @@ void SimpleParser::parseExpr() {
 // Exactly one operand, or the expression is malformed: parseBinaryExpr pops two
 // of these, so failing to push one here would underflow the parse stack.
 void SimpleParser::parseOperand() {
-    switch (this->currentToken().m_kind) {
-        case TokenKind::IDENDIFIER:
-            this->parserIdentifier();
-            return;
-        case TokenKind::INT_LIT:
-        case TokenKind::FLOAT_LIT:
-        case TokenKind::BOOL_LIT:
-        case TokenKind::STR_LIT:
-            this->parseLiteral();
-            return;
-        case TokenKind::OPEN_PAR: {
-            this->advance();
-            // Fresh floor: the group process everything up to its ')'.
-            this->parseExpr();
-            if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
-                throw ParseError("[Expr] No closing parenthesis", m_pos);
-            }
-            this->advance();
-            return;
+    if (this->currentToken().m_kind == TokenKind::IDENDIFIER) {
+        this->parserIdentifier();
+    } else if (
+        this->currentToken().m_kind == TokenKind::INT_LIT ||
+        this->currentToken().m_kind == TokenKind::FLOAT_LIT ||
+        this->currentToken().m_kind == TokenKind::BOOL_LIT ||
+        this->currentToken().m_kind == TokenKind::STR_LIT
+    ) {
+        this->parseLiteral();
+        // Read a group inside (...)
+    } else if (this->currentToken().m_kind == TokenKind::OPEN_PAR) {
+        this->advance();
+        // Fresh floor: the group process everything up to its ')'.
+        this->parseExpr();
+        if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
+            throw ParseError("[Expr] No closing parenthesis", m_pos);
         }
-        default:
-            throw ParseError("[Expr] Expected an operand", m_pos);
+        this->advance();
+    } else {
+        throw ParseError("[Expr] Expected an operand", m_pos);
+    }
+
+    while(this->currentToken().m_kind == TokenKind::OPEN_PAR) {
+        this->parseCallExpr();
     }
 }
 
@@ -204,6 +206,33 @@ void SimpleParser::parseBinaryExpr() {
     }
     return;
 }
+
+
+void SimpleParser::parseCallExpr() {
+    auto callee = this->popAs<Expr>();
+    // skip '('
+    this->advance();
+    std::vector<std::unique_ptr<Expr>> args;
+    // Skip empty call
+    if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
+        bool cont = true;
+        while(cont) {
+            this->parseExpr();
+            args.push_back(this->popAs<Expr>());
+            if (this->currentToken().m_kind == TokenKind::COMMA) {
+                this->advance();
+            } else {
+                cont = false;
+            }
+        }
+        if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
+            throw ParseError("[CallExpr] No closing parenthesis", m_pos);
+        }
+    }
+    this->advance();
+    this->push(std::make_unique<CallExpr>(std::move(callee), std::move(args)));
+}
+
 
 void SimpleParser::parseLiteral() {
     // Let's see the first token in the stip do decide what to parse

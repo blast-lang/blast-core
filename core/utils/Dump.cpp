@@ -40,6 +40,13 @@ public:
     std::string visitAssign(const Assign& n) {
         return "(assign " + visit(n.target()) + " " + visit(n.value()) + ")";
     }
+    std::string visitCallExpr(const CallExpr& n) {
+        std::string out = "(call " + visit(n.callee());
+        for (const auto& arg : n.args()) {
+            out += " " + visit(arg.get());
+        }
+        return out + ")";
+    }
     std::string visitExprStmt(const ExprStmt& n) {
         return "(expr-stmt " + visit(n.expr()) + ")";
     }
@@ -110,6 +117,7 @@ public:
         return "BinaryExpr '" + n.op() + "'";
     }
     std::string visitAssign(const Assign&)                 { return "Assign"; }
+    std::string visitCallExpr(const CallExpr&)             { return "CallExpr"; }
     std::string visitExprStmt(const ExprStmt&)             { return "ExprStmt"; }
     std::string visitIfStmt(const IfStmt&)                 { return "IfStmt"; }
     std::string visitContinueStmt(const ContinueStmt&)     { return "ContinueStmt"; }
@@ -136,6 +144,13 @@ public:
     }
     std::vector<Child> visitAssign(const Assign& n) {
         return {{"target: ", n.target()}, {"value: ", n.value()}};
+    }
+    std::vector<Child> visitCallExpr(const CallExpr& n) {
+        std::vector<Child> children{{"callee: ", n.callee()}};
+        for (const auto& arg : n.args()) {
+            children.push_back({"arg: ", arg.get()});
+        }
+        return children;
     }
     std::vector<Child> visitExprStmt(const ExprStmt& n) {
         return {{"", n.expr()}};

@@ -35,6 +35,7 @@ public:
         UnaryExpr,
         BinaryExpr,
         Assign,
+        CallExpr,
         // --- Declarations (an expression, as in Julia; keep last in the expr range) ---
         VarDecl,
         // --- Statements ---
@@ -262,6 +263,25 @@ private:
     std::string m_name;
     std::unique_ptr<Expr> m_type;   // Identifier now; TypeExpr later (Vector{Int})
     std::unique_ptr<Expr> m_init;
+};
+
+// ---------------------------------------------------------------------------
+// Calls (Exprs)
+// ---------------------------------------------------------------------------
+class CallExpr: public Expr {
+public:
+    CallExpr(std::unique_ptr<Expr> callee, std::vector<std::unique_ptr<Expr>> args):
+        Expr(Kind::CallExpr),
+        m_callee(std::move(callee)),
+        m_args(std::move(args))
+    {}
+    const Expr* callee() const { return m_callee.get(); }
+    const std::vector<std::unique_ptr<Expr>>& args() const { return m_args; }
+    void addArg(std::unique_ptr<Expr> arg) { m_args.push_back(std::move(arg)); }
+
+private:
+    std::unique_ptr<Expr> m_callee;
+    std::vector<std::unique_ptr<Expr>> m_args;
 };
 
 // ---------------------------------------------------------------------------

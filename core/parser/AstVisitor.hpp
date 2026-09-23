@@ -25,6 +25,7 @@ public:
     R visitUnaryExpr(const UnaryExpr& n)               { return self().visitEmpty(); }
     R visitBinaryExpr(const BinaryExpr& n)             { return self().visitEmpty(); }
     R visitAssign(const Assign& n)                     { return self().visitEmpty(); }
+    R visitCallExpr(const CallExpr& n)                 { return self().visitEmpty(); }
     R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
     R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
     R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
@@ -65,6 +66,8 @@ public:
                 return self().visitBinaryExpr(as<BinaryExpr>(node));
             case Kind::Assign:
                 return self().visitAssign(as<Assign>(node));
+            case Kind::CallExpr:
+                return self().visitCallExpr(as<CallExpr>(node));
             // Declarations
             case Kind::VarDecl:
                 return self().visitVarDecl(as<VarDecl>(node));

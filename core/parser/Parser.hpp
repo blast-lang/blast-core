@@ -96,6 +96,8 @@ protected:
     void parseUnaryExpr();
     // Folds the top operator with the top two operands. Reads no tokens.
     void parseBinaryExpr();
+    // Call
+    void parseCallExpr();
     void parseLiteral();
     void parserIdentifier();
 

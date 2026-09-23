@@ -62,6 +62,23 @@ void ScopeResolver::visitAssign(const parser::Assign& node) {
     this->visit(node.target());
 }
 
+void ScopeResolver::visitCallExpr(const parser::CallExpr& node) {
+    this->visit(node.callee());
+    for (const auto& arg: node.args()) {
+        this->visit(arg.get());
+    }
+
+    // Now that this call has been visited, it has a symbol
+    Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
+    std::printf("[AF] Calling fct %.*s with arguments: \n", int(s->name().size()), s->name().data());
+    for (const auto& arg: node.args()) {
+        Symbol* a = this->m_ctx->getNodeSymbol(arg.get());
+        if (a) {
+            std::printf("\t %.*s \n", int(a->name().size()), a->name().data());
+        }
+    }
+}
+
 void ScopeResolver::visitIfStmt(const parser::IfStmt& node) {
     this->visit(node.cond());
     this->visit(node.thenBranch());
@@ -106,13 +123,13 @@ const Type* TypeResolver::visitVarDecl(const parser::VarDecl& node) {
         Type* declared = ts ? ts->type() : nullptr;
         // If undeclared -> Throw ?
         if (declared) {
-            std::printf("[AF] Identifier %s is of type %s\n", node.name().c_str(), declared->name().c_str());
+            //std::printf("[AF] Identifier %s is of type %s\n", node.name().c_str(), declared->name().c_str());
             // Set node's and variable's type
             this->m_ctx->setNodeType(&node, declared);
             v->setType(declared);
             return declared;
         } else {
-            std::printf("[AF] Identifier %s has undefined type\n", node.name().c_str());
+            //std::printf("[AF] Identifier %s has undefined type\n", node.name().c_str());
         }
     }
     return nullptr;
@@ -127,6 +144,10 @@ const Type* TypeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
 }
 
 const Type* TypeResolver::visitAssign(const parser::Assign& node) {
+    return nullptr;
+}
+
+const Type* TypeResolver::visitCallExpr(const parser::CallExpr& node) {
     return nullptr;
 }
 
