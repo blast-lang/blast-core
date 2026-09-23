@@ -138,17 +138,27 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
     Operand cond = this->visit(node.cond());
     const BlockId cond_id = this->m_current_block;
 
-    const std::string suffix = "." + std::to_string(this->currentFct().blocks().size());
+    const std::string suffix = std::to_string(this->currentFct().blocks().size());
     // Create the 'then' block as predecessor of the 'cond' block
-    const BlockId then_id = this->currentFct().addBlock("if.then" + suffix);
-    // Creat the 'join' block, that is reach after 'then' or if 'cond' is false
-    const BlockId join_id = this->currentFct().addBlock("if.join" + suffix);
-
-    // Add 'then' and 'join' as successors of 'cond'
+    const BlockId then_id = this->currentFct().addBlock("if" + suffix + ".then");
+    // Create the 'join' block, that is reach after 'then' or if 'cond' is false
+    const BlockId join_id = this->currentFct().addBlock("if" + suffix + ".join");
+    BlockId else_id = 0;
+    
+    // Connect 'cond' block to 'then' block
     this->currentFct().getBlock(then_id).preds().push_back(cond_id);
-    this->currentFct().getBlock(join_id).preds().push_back(cond_id);
-    // if a goto 'then' else goto 'join'
-    this->currentFct().addCBR(cond_id, cond, then_id, join_id);
+
+    // Connect 'join' or 'else' depending if there's an else at all
+    if (node.hasElse()) {
+        else_id = this->currentFct().addBlock("if" + suffix + ".else");
+        this->currentFct().getBlock(else_id).preds().push_back(cond_id);
+        // if a goto 'then' else goto 'else'
+        this->currentFct().addCBR(cond_id, cond, then_id, else_id);
+    } else {
+        this->currentFct().getBlock(join_id).preds().push_back(cond_id);
+        // if a goto 'then' else goto 'join'
+        this->currentFct().addCBR(cond_id, cond, then_id, join_id);
+    }
 
     // Move to the new 'then' block to visit it
     this->m_current_block = then_id;
@@ -159,6 +169,17 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
     this->currentFct().getBlock(join_id).preds().push_back(then_end);
     // Unconditional jump from 'then' to 'join'
     this->currentFct().addBR(then_end, join_id);
+
+    // Same with 'else' block
+    if (node.hasElse()) {
+        this->m_current_block = else_id;
+        this->visit(node.elseBranch());
+
+        const BlockId else_end = this->m_current_block;
+        this->currentFct().getBlock(join_id).preds().push_back(else_end);
+        this->currentFct().addBR(else_end, join_id);
+    }
+
     // Continue forward after 'join' block
     this->m_current_block = join_id;
     return NONE();

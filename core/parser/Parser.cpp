@@ -84,13 +84,19 @@ void SimpleParser::parseIfStmt() {
     this->parseExpr();
     std::unique_ptr<Expr> cond = this->popAs<Expr>();
     std::unique_ptr<Block> if_block = nullptr;
+    std::unique_ptr<Block> else_block = nullptr;
     // Now parse 'if' block content
     if (this->currentToken().m_kind == TokenKind::OPEN_CURLBRAC) {
         this->parseBlock();
         if_block = this->popAs<Block>();
+        if (this->currentToken().m_kind == TokenKind::ELSE_STMT) {
+            this->advance();
+            this->parseBlock();
+            else_block = this->popAs<Block>();
+        }
     }
     // Push the if statement onto the stack
-    this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), nullptr));
+    this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), std::move(else_block)));
     return;
 }
 
