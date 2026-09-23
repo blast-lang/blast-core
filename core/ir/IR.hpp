@@ -543,7 +543,7 @@ private:
     std::unordered_map<std::pair<context::SymbolId, BlockId>, Operand, SymbolBlockHash> m_lko;
 
 public:
-    static void resolvePHI(Function& fct);
+    static void resolveCriticalEdges(Function& fct);
 };
 
 } // namespace blast::core::ir

@@ -138,10 +138,11 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
     Operand cond = this->visit(node.cond());
     const BlockId cond_id = this->m_current_block;
 
+    const std::string suffix = "." + std::to_string(this->currentFct().blocks().size());
     // Create the 'then' block as predecessor of the 'cond' block
-    const BlockId then_id = this->currentFct().addBlock("if.then");
+    const BlockId then_id = this->currentFct().addBlock("if.then" + suffix);
     // Creat the 'join' block, that is reach after 'then' or if 'cond' is false
-    const BlockId join_id = this->currentFct().addBlock("if.join");
+    const BlockId join_id = this->currentFct().addBlock("if.join" + suffix);
 
     // Add 'then' and 'join' as successors of 'cond'
     this->currentFct().getBlock(then_id).preds().push_back(cond_id);
@@ -185,12 +186,12 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     // Return 0
     this->addInstruction(LITERAL(std::int64_t{0}), NONE(), Opcode::RET);
     for (Function& fct: this->m_main.fcts()) {
-        resolvePHI(fct);
+        resolveCriticalEdges(fct);
     }
     return this->m_main;
 }
 
-void SSAIR::resolvePHI(Function& fct) {
+void SSAIR::resolveCriticalEdges(Function& fct) {
     // We assume at this point that the control flow graph if 'fct' is complete and all predecessors are set
     // This function will:
     // Compute successors for o(1) access
