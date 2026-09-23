@@ -257,7 +257,7 @@ public:
 
 private:
     void lowerFct(const ir::Function& fct);
-    void lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const std::vector<bool>& reachable);
+    void lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::BasicBlock& block, const std::vector<bool>& reachable);
     void lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir::Instruction& inst);
     MachineOperand lowerOperand(MachineFunction& mfct, ir::Operand op);
 

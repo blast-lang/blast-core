@@ -47,7 +47,7 @@ void X86::lowerFct(const ir::Function& fct) {
     }
     // Now, lower in postorder
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
-        this->lowerBlock(mfct, fct.getBlock(*it), visited);
+        this->lowerBlock(mfct, fct, fct.getBlock(*it), visited);
     }
 
     // The new entry block it still at the begining
@@ -69,7 +69,7 @@ void X86::lowerFct(const ir::Function& fct) {
     });
 }
 
-void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const std::vector<bool>& reachable) {
+void X86::lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::BasicBlock& block, const std::vector<bool>& reachable) {
     MachineBlock& mblock = mfct.getBlock(block.id());
 
     for (ir::BlockId pred: block.preds()) {
@@ -79,7 +79,25 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::BasicBlock& block, const s
     }
 
     for (const ir::Instruction& inst: block.instrs()) {
-        // if isTerminator(inst.op()) -> handle the phis of the block !!!
+        // If this is the last intruction of the IR block, we will resolve phis by injecting MOV
+        // At the end of the block by looking at the block successor's phis
+        if (isTerminator(inst.op())) {
+            for (ir::BlockId succ: block.successors()) {
+                for (const ir::Phi& phi: fct.getBlock(succ).phis()) {
+                    for (const auto& [id, var]: phi.m_incomings) {
+                        if (id == block.id()) {
+                            // i64 %1 = PHI [entry: i64 1], [if.then: i64 20]
+                            // Becomes %1 = 1 at then end of entry block (before terminator)
+                            // i64 %2 = PHI [entry: i64 0], [if.then: i64 10]
+                            // Becomes %2 = 0 at then end of entry block (before terminator)
+                            // Then block will also have those revoled then encountered later
+                            ir::Instruction phiresolve(phi.m_result, var, ir::NONE(), ir::Opcode::COPY);
+                            this->lowerInstruction(mfct, mblock, phiresolve);
+                        }
+                    }
+                }
+            }
+        }
         this->lowerInstruction(mfct, mblock, inst);
     }
 }
@@ -135,8 +153,12 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
         case ir::Opcode::BR:
             mblock.addInstruction(MachineOpcode::JMP, lhs, MNONE());
             break;
-        /*default:
-            throw CodegenError("[X86] Unsupported opcode");*/
+        // Simple two-adress copy
+        case ir::Opcode::COPY:
+            mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
+            break;
+        default:
+            throw CodegenError("[X86] Unsupported opcode");
     }
 }
 

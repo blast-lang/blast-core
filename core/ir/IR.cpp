@@ -1,5 +1,7 @@
 #include <core/ir/IR.hpp>
 #include <core/Exception.hpp>
+#include <iterator>
+#include <set>
 
 namespace blast::core::ir {
 
@@ -182,38 +184,114 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     const Operand last = this->visit(&unit);
     // Return 0
     this->addInstruction(LITERAL(std::int64_t{0}), NONE(), Opcode::RET);
+    for (Function& fct: this->m_main.fcts()) {
+        resolvePHI(fct);
+    }
     return this->m_main;
 }
 
+void SSAIR::resolvePHI(Function& fct) {
+    // We assume at this point that the control flow graph if 'fct' is complete and all predecessors are set
+    // This function will:
+    // Compute successors for o(1) access
+    // split critical edges: https://nickdesaulniers.github.io/blog/2023/01/27/critical-edge-splitting/
+    // Resolve phi with assignement, that will break SSA (!!!)
+    std::unordered_map<BlockId, std::set<BlockId>> predecessors;
+    std::unordered_map<BlockId, std::set<BlockId>> successors;
 
-std::vector<BlockId> BasicBlock::successors() const {
-    std::vector<BlockId> scs;
-    if (this->instrs().empty()) {
+    // Find the successor blocks of a given block by looking at its termination instruction
+    auto computeSuccessors = [](const BasicBlock& block) {
+        std::set<BlockId> scs;
+        if (block.instrs().empty()) {
+            return scs;
+        }
+
+        const Instruction& instr = block.instrs().back();
+
+        switch (instr.op()) {
+            case Opcode::RET: {
+                break;
+            }
+            case Opcode::BR: {
+                scs.insert(instr.lhs().m_block);
+                break;
+            }
+            case Opcode::CBR: {
+                scs.insert(instr.lhs().m_block);
+                scs.insert(instr.rhs().m_block);
+                break;
+            }
+            default: {
+                throw CodegenError("[BasicBlock] Block '" + block.label() + "' does not end in a terminator");
+            }
+        }
+
         return scs;
+    };
+
+    for (BasicBlock& block: fct.blocks()) {
+        predecessors[block.id()] = std::set<BlockId>(block.preds().begin(), block.preds().end());
+        successors[block.id()] = computeSuccessors(block);
     }
 
-    scs.reserve(2);
-    const Instruction& instr = this->instrs().back();
-
-    switch (instr.op()) {
-        case Opcode::RET: {
-            break;
-        }
-        case Opcode::BR: {
-            scs.push_back(instr.lhs().m_block);
-            break;
-        }
-        case Opcode::CBR: {
-            scs.push_back(instr.lhs().m_block);
-            scs.push_back(instr.rhs().m_block);
-            break;
-        }
-        default: {
-            throw CodegenError("[BasicBlock] Block '" + this->m_label + "' does not end in a terminator");
+    // Find critical edge: block who's predecessor has multiple successors
+    // AND this block as mulltiple predecessors
+    std::set<std::pair<BlockId, BlockId>> critical_edges;
+    for (BasicBlock& block: fct.blocks()) {
+        if (predecessors[block.id()].size() > 1) {
+            for (BlockId pred: predecessors[block.id()]) {
+                if (successors[pred].size() > 1) {
+                    critical_edges.insert({pred, block.id()});
+                }
+            }
         }
     }
 
-    return scs;
+    for (const auto& [i,j]: critical_edges) {
+        // remove edge i -> j and create a empty block node so that we have i -> b{} -> j
+        successors[i].erase(j);
+        predecessors[j].erase(i);
+        BlockId newblock = fct.addBlock(fct.getBlock(i).label() + "." + fct.getBlock(j).label());
+        // Create the two new non-critical edges
+        successors[i].insert(newblock);
+        predecessors[j].insert(newblock);
+        successors[newblock].insert(j);
+        predecessors[newblock].insert(i);
+
+        // Now the termitators (jump instructions) of the blocks i and j
+        // Needs to be changes to take newblock into account
+        Instruction& term = fct.getBlock(i).instrs().back();
+        Operand lhs = term.lhs();
+        Operand rhs = term.rhs();
+        if (lhs.m_block == j) {
+            lhs = BLOCK(newblock);
+        }
+        if (rhs.m_block == j) {
+            rhs = BLOCK(newblock);
+        }
+        const std::string comment = term.comment();
+        term = Instruction(term.result(), lhs, rhs, term.op());
+        term.setComment(comment);
+        fct.addBR(newblock, j);
+
+        // Same thing for the phis
+        for (Phi& phi: fct.getBlock(j).phis()) {
+            for (auto& [from, value]: phi.m_incomings) {
+                if (from == i) {
+                    from = newblock;
+                }
+            }
+        }
+    }
+
+    // Now, correcttly fill each block's successors and predecessors
+    for (BasicBlock& block: fct.blocks()) {
+        const std::set<BlockId>& preds = predecessors[block.id()];
+        const std::set<BlockId>& succs = successors[block.id()];
+        block.preds().assign(preds.begin(), preds.end());
+        block.successors().assign(succs.begin(), succs.end());
+    }
+
 }
 
 } // namespace blast::core::ir

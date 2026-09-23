@@ -501,7 +501,12 @@ std::string emit(const codegen::X86& x86) {
         "main:\n";
 
     for (const codegen::MachineFunction& mfn : x86.fcts()) {
+        bool first = true;
         for (const codegen::MachineBlock& block : mfn.blocks()) {
+            if (!first) {
+                out += "\n";
+            }
+            first = false;
             out += block.label() + ":\n";
             for (const codegen::MachineInstruction& instr : block.instrs()) {
                 out += "    " + attInstructionText(instr) + "\n";

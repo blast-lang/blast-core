@@ -326,9 +326,10 @@ private:
     std::vector<Instruction> m_instrs;
     // Block parents to get Control flow Graph structure
     std::vector<BlockId>     m_preds;
+    std::vector<BlockId>     m_successors;
 
 public:
-    BasicBlock(BlockId id, std::string label): m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds(){}
+    BasicBlock(BlockId id, std::string label): m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds(), m_successors(){}
 
     BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
@@ -342,8 +343,8 @@ public:
     std::vector<BlockId>& preds() { return this->m_preds; }
     const std::vector<BlockId>& preds() const { return this->m_preds; }
 
-    // Find the successor blocks of a given block by looking at its termination instruction
-    std::vector<BlockId> successors() const;
+    std::vector<BlockId>& successors() { return this->m_successors; }
+    const std::vector<BlockId>& successors() const { return this->m_successors; }
 
     // result is minted by the owning Function: value ids are unique per
     // function, not per block. Prefer Function::addInstruction over this.
@@ -540,6 +541,9 @@ private:
     context::ASTContext* m_ctx;
     // Map the Last Known Operand (register) attributed to a given variable
     std::unordered_map<std::pair<context::SymbolId, BlockId>, Operand, SymbolBlockHash> m_lko;
+
+public:
+    static void resolvePHI(Function& fct);
 };
 
 } // namespace blast::core::ir
