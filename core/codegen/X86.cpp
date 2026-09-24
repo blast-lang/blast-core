@@ -685,6 +685,9 @@ void allocate(MachineFunction& fct, X86& x86) {
             }
             if (isVreg(instr->m_dst)) {
                 wrt[instr].insert(regId(instr->m_dst));
+                if (instr->m_op != MachineOpcode::MOV) {
+                    use[instr].insert(regId(instr->m_dst));
+                }
             }
         }
         if (isPreg(instr->m_dst)) {
@@ -816,10 +819,24 @@ void allocate(MachineFunction& fct, X86& x86) {
     }
 
     // Now, the algorithm
-    const auto K = 16;
+    std::unordered_map<ir::ValueId, std::size_t> K;
+    for (ir::ValueId x: operands) {
+        std::vector<ir::ValueId> counted;
+        for (ir::ValueId r: domains.at(x)) {
+            const std::set<ir::ValueId>& fam = x86.family(r);
+            const bool aliased = std::any_of(counted.begin(), counted.end(), [&fam](ir::ValueId c) {
+                return fam.count(c) > 0;
+            });
+            if (!aliased) {
+                counted.push_back(r);
+            }
+        }
+        K[x] = counted.size();
+    }
     // Find an operand which has < K neighboors
     // Those node can be colored without spilling
     std::unordered_map<ir::ValueId, ir::ValueId> colors;
+    std::set<ir::ValueId> spilled;
     do {
         // sort operands by their remaining domain size
         // That way we color node with smallest domain first
@@ -834,19 +851,33 @@ void allocate(MachineFunction& fct, X86& x86) {
         auto it = std::find_if(
             by_domain.begin(), by_domain.end(),
             [&](ir::ValueId node) {
-                return inter_graph.at(node).size() < K;
+                return inter_graph.at(node).size() < K.at(node);
             }
         );
 
-        // No more node to treat
+        // No more node to visit
         if (it == by_domain.end()) {
+            // No more node to visit but still node in the graph? -> Need spilling
+            if (inter_graph.size() > 0) {
+                // We will spill the node with the higest degree
+                it = std::max_element(by_domain.begin(), by_domain.end(), [&](ir::ValueId a, ir::ValueId b) {
+                    return inter_graph.at(a).size() < inter_graph.at(b).size();
+                });
+                spilled.insert(*it);
+                // Remove the spilled node from the graph and continue forward
+                for (ir::ValueId n: inter_graph.at(*it)) {
+                    inter_graph.at(n).erase(*it);
+                }
+                inter_graph.erase(*it);
+                continue;
+            }
+            // exit loop
             break;
         }
 
         // No colors for x, need spilling
         if (domains.at(*it).empty()) {
-            // TODO: Spill
-
+            spilled.insert(*it);
         } else {
             // Color the node with it first available color
             colors[*it] = *domains.at(*it).begin();
@@ -866,6 +897,58 @@ void allocate(MachineFunction& fct, X86& x86) {
             inter_graph.erase(*it);
         }
     } while (!inter_graph.empty());
+
+    if (spilled.size() > 0) {
+        std::unordered_map<ir::ValueId, std::set<std::size_t>> r_use;
+        std::unordered_map<ir::ValueId, std::set<std::size_t>> r_wrt;
+        // Map a spilled register 's' to the instruction where 's' should be stored just before
+        std::unordered_map<ir::ValueId, std::set<std::size_t>> store;
+        // Map a spilled register 's' to the instruction where 's' should be loaded just before
+        std::unordered_map<ir::ValueId, std::set<std::size_t>> load;
+
+        for(ir::ValueId s: spilled) {
+            for (std::size_t idx = 0; idx < order.size(); idx++) {
+                if (use[order[idx]].contains(s)) {
+                    r_use[s].insert(idx);
+                }
+                if (wrt[order[idx]].contains(s)) {
+                    r_wrt[s].insert(idx);
+                }
+            }
+        }
+
+        for(ir::ValueId s: spilled) {
+            // If a vreg is used after reading, no need to spill yet, we can advance the write pointer
+            for (std::size_t idx: r_wrt[s]) {
+                if (!r_wrt[s].contains(idx + 1)) {
+                    store[s].insert(idx);
+                }
+            }
+            // If the vreg is used AND overritten on the same instruction, whe can advance the use pointer
+            for (std::size_t idx: r_use[s]) {
+                if (idx == 0 || (!r_use[s].contains(idx - 1) && !r_wrt[s].contains(idx - 1))) {
+                    load[s].insert(idx);
+                }
+            }
+        }
+
+        const Register* rbp = &x86.getReg("RBP");
+        
+
+        std::cout << "spilled:\n";
+        for (ir::ValueId s: spilled) {
+            std::cout << "  %" << s << "\tstore after";
+            for (std::size_t idx: store[s]) {
+                std::cout << " " << idx;
+            }
+            std::cout << "\tload before";
+            for (std::size_t idx: load[s]) {
+                std::cout << " " << idx;
+            }
+            std::cout << "\n";
+        }
+        throw CodegenError("[X86] Spilling !");
+    }
 
     // Apply the coloring by changing VREG into PREG!
     for (auto it = order.begin(); it != order.end(); ++it) {

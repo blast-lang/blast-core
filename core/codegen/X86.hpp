@@ -86,7 +86,9 @@ struct MachineOperand {
         // A bare assembler label, as a CALL target
         SYM,
         // The same label taken relative to RIP, as a LEA source
-        RIP
+        RIP,
+        // Memory at m_preg + m_offset, like [RBP-8]
+        MEM
     };
 
     Kind     m_kind;
@@ -98,6 +100,7 @@ struct MachineOperand {
     };
     // A union cannot hold a std::string, so SYM and RIP keep their name here
     std::string m_sym;
+    std::int32_t m_offset = 0;
 };
 
 inline MachineOperand MNONE() {
@@ -121,6 +124,16 @@ inline MachineOperand PREG(const Register* r, ir::Type t) {
         .m_kind = MachineOperand::Kind::PREG,
         .m_type = t,
         .m_preg = r
+    };
+}
+
+inline MachineOperand MEM(const Register* base, std::int32_t offset, ir::Type t) {
+    return {
+        .m_kind = MachineOperand::Kind::MEM,
+        .m_type = t,
+        .m_preg = base,
+        .m_sym = "",
+        .m_offset = offset
     };
 }
 

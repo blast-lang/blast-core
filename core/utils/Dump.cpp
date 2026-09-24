@@ -337,6 +337,8 @@ std::string machineOperandText(const codegen::MachineOperand& op) {
         case codegen::MachineOperand::Kind::PREG: return regName(op.m_preg);
         case codegen::MachineOperand::Kind::SYM:  return op.m_sym;
         case codegen::MachineOperand::Kind::RIP:  return op.m_sym + "(rip)";
+        case codegen::MachineOperand::Kind::MEM:
+            return "[" + regName(op.m_preg) + (op.m_offset < 0 ? "" : "+") + std::to_string(op.m_offset) + "]";
         case codegen::MachineOperand::Kind::LIT:
             return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
     }
@@ -388,6 +390,11 @@ std::string attOperandText(const codegen::MachineOperand& op) {
             }
             return "%" + text;
         }
+        case codegen::MachineOperand::Kind::MEM: {
+            codegen::MachineOperand base = op;
+            base.m_kind = codegen::MachineOperand::Kind::PREG;
+            return std::to_string(op.m_offset) + "(" + attOperandText(base) + ")";
+        }
         case codegen::MachineOperand::Kind::SYM:
             return op.m_sym;
         case codegen::MachineOperand::Kind::RIP:
@@ -413,13 +420,19 @@ std::string attInstructionText(const codegen::MachineInstruction& instr) {
         // An instruction that only reads, like push, takes its suffix from the
         // operand it reads.
         std::string read = op;
-        if (instr.m_src.m_kind == codegen::MachineOperand::Kind::PREG) {
+        if (
+            instr.m_src.m_kind == codegen::MachineOperand::Kind::PREG ||
+            instr.m_src.m_kind == codegen::MachineOperand::Kind::MEM
+        ) {
             read += widthSuffix(instr.m_src.m_type);
         }
         return read + " " + attOperandText(instr.m_src);
     }
     std::string head = op;
-    if (instr.m_dst.m_kind == codegen::MachineOperand::Kind::PREG) {
+    if (
+        instr.m_dst.m_kind == codegen::MachineOperand::Kind::PREG ||
+        instr.m_dst.m_kind == codegen::MachineOperand::Kind::MEM
+    ) {
         head += widthSuffix(instr.m_dst.m_type);
     }
     head += " ";
