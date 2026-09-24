@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -254,6 +255,7 @@ public:
     const std::vector<Register>& registers() const { return this->m_registers; }
     ir::ValueId getRegId(const std::string& name);
     const Register& getReg(const std::string& name);
+    const std::set<ir::ValueId>& family(ir::ValueId id) const;
 
 private:
     void lowerFct(const ir::Function& fct);
@@ -266,6 +268,8 @@ private:
 
 private:
     std::vector<Register> m_registers;
+    // Map register id's to the computed families
+    std::unordered_map<ir::ValueId, std::set<ir::ValueId>> m_families;
     std::unordered_map<std::string_view, ir::ValueId> m_regnames;
 };
 

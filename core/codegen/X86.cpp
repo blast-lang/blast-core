@@ -198,7 +198,15 @@ const Register& X86::getReg(const std::string& name) {
     return this->m_registers[this->getRegId(name)];
 }
 
-X86::X86(): m_registers(), m_regnames() {
+const std::set<ir::ValueId>& X86::family(ir::ValueId id) const {
+    const auto it = this->m_families.find(id);
+    if (it == this->m_families.end()) {
+        throw CodegenError("[X86] Unknown register id " + std::to_string(id));
+    }
+    return it->second;
+}
+
+X86::X86(): m_registers(), m_families(), m_regnames() {
     // General purpose
     Register RAX(1, "RAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W64}, RegClass::GP, 0, false, true);
     Register EAX(2, "EAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W32}, RegClass::GP, 0, false, true);
@@ -569,6 +577,13 @@ X86::X86(): m_registers(), m_regnames() {
     this->addRegister(std::move(K5));
     this->addRegister(std::move(K6));
     this->addRegister(std::move(K7));
+
+    // Compute famillies (repondant information but easy to look into)
+    for (const Register& reg: this->registers()) {
+        this->m_families[reg.id()].insert(reg.id());
+        this->m_families[reg.id()].insert(reg.parent());
+        this->m_families[reg.id()].insert(reg.subregs().begin(), reg.subregs().end());
+    }
 }
 
 
@@ -830,13 +845,19 @@ void allocate(MachineFunction& fct, X86& x86) {
 
         // No colors for x, need spilling
         if (domains.at(*it).empty()) {
+            // TODO: Spill
 
         } else {
             // Color the node with it first available color
             colors[*it] = *domains.at(*it).begin();
-            // This color can then be removed from the node neighboor's domain
-            for(ir::ValueId n: inter_graph.at(*it)) {
-                domains.at(n).erase(*domains.at(*it).begin());
+            // Tackling aliasing:
+            // If we pick RAX, then EAX, AX can NOT be picked either in the interference
+            // We will remove domains.at(*it) and its familly from domains
+            for (ir::ValueId color: x86.family(*domains.at(*it).begin())) {
+                // This color can then be removed from the node neighboor's domain
+                for(ir::ValueId n: inter_graph.at(*it)) {
+                    domains.at(n).erase(color);
+                }
             }
             // This node that then be removed from the interferance graph
             for (ir::ValueId n: inter_graph.at(*it)) {
@@ -844,11 +865,6 @@ void allocate(MachineFunction& fct, X86& x86) {
             }
             inter_graph.erase(*it);
         }
-        // TODO:
-        // Register aliasing is unused. family() and subregs() are never read by allocate(), so colors are per register id: nothing stops %0 getting RAX and %1 getting EAX, which are the same 64 bits. Everything is i64 today so you can't hit it yet, but it's wrong the moment a narrower type appears. Two values interfere means their families must differ, not their ids.
-
-
-
     } while (!inter_graph.empty());
 
     // Apply the coloring by changing VREG into PREG!

@@ -70,6 +70,11 @@ void ScopeResolver::visitCallExpr(const parser::CallExpr& node) {
 
     // Now that this call has been visited, it has a symbol
     Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
+    // Set a CallExpr symbols as it's callee's symbol
+    this->m_ctx->setNodeSymbol(&node, s);
+
+
+    // TODO: Do that in Type Resolver
     std::printf("[AF] Calling fct %.*s with arguments: \n", int(s->name().size()), s->name().data());
     for (const auto& arg: node.args()) {
         Symbol* a = this->m_ctx->getNodeSymbol(arg.get());
