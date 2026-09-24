@@ -51,7 +51,7 @@ void X86::lowerFct(const ir::Function& fct) {
     }
 
     // The new entry block it still at the begining
-    std::vector<MachineInstruction>& new_entry = mfct.blocks().front().instrs();
+    std::list<MachineInstruction>& new_entry = mfct.blocks().front().instrs();
     // Inject the 'save' frame (stack) instructions
     const MachineOperand rbp = PREG(&this->getReg("RBP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
     const MachineOperand rsp = PREG(&this->getReg("RSP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
@@ -61,9 +61,9 @@ void X86::lowerFct(const ir::Function& fct) {
         { MachineOpcode::MOV, rbp, rsp }
     });
     // Same logic for the final block (frame teardown)
-    std::vector<MachineInstruction>& new_exit = mfct.blocks().back().instrs();
+    std::list<MachineInstruction>& new_exit = mfct.blocks().back().instrs();
     // Insert stack pointet restore BEFORE the return statement
-    new_exit.insert(new_exit.end()-1, {
+    new_exit.insert(std::prev(new_exit.end()), {
         { MachineOpcode::XOR, eax, eax },
         { MachineOpcode::POP, rbp, MNONE() },
     });
@@ -628,8 +628,8 @@ void allocate(MachineFunction& fct, X86& x86) {
             continue;
         }
 
-        for (std::size_t i = 0; i + 1 < block.instrs().size(); i++) {
-            succ[&block.instrs()[i]] = {&block.instrs()[i + 1]};
+        for (auto it = block.instrs().begin(); std::next(it) != block.instrs().end(); ++it) {
+            succ[&*it] = {&*std::next(it)};
         }
 
         std::set<MachineInstruction*> targets;
@@ -899,35 +899,48 @@ void allocate(MachineFunction& fct, X86& x86) {
     } while (!inter_graph.empty());
 
     if (spilled.size() > 0) {
-        std::unordered_map<ir::ValueId, std::set<std::size_t>> r_use;
-        std::unordered_map<ir::ValueId, std::set<std::size_t>> r_wrt;
+        std::unordered_map<ir::ValueId, std::set<MachineInstruction*>> r_use;
+        std::unordered_map<ir::ValueId, std::set<MachineInstruction*>> r_wrt;
         // Map a spilled register 's' to the instruction where 's' should be stored just before
-        std::unordered_map<ir::ValueId, std::set<std::size_t>> store;
+        std::unordered_map<ir::ValueId, std::set<MachineInstruction*>> store;
         // Map a spilled register 's' to the instruction where 's' should be loaded just before
-        std::unordered_map<ir::ValueId, std::set<std::size_t>> load;
+        std::unordered_map<ir::ValueId, std::set<MachineInstruction*>> load;
+
+        std::unordered_map<MachineInstruction*, std::set<MachineInstruction*>> pred;
+        for (const auto& [i, nexts]: succ) {
+            for (MachineInstruction* j: nexts) {
+                pred[j].insert(i);
+            }
+        }
 
         for(ir::ValueId s: spilled) {
-            for (std::size_t idx = 0; idx < order.size(); idx++) {
-                if (use[order[idx]].contains(s)) {
-                    r_use[s].insert(idx);
+            for (MachineInstruction* i: order) {
+                if (use[i].contains(s)) {
+                    r_use[s].insert(i);
                 }
-                if (wrt[order[idx]].contains(s)) {
-                    r_wrt[s].insert(idx);
+                if (wrt[i].contains(s)) {
+                    r_wrt[s].insert(i);
                 }
             }
         }
 
         for(ir::ValueId s: spilled) {
             // If a vreg is used after reading, no need to spill yet, we can advance the write pointer
-            for (std::size_t idx: r_wrt[s]) {
-                if (!r_wrt[s].contains(idx + 1)) {
-                    store[s].insert(idx);
+            for (MachineInstruction* i: r_wrt[s]) {
+                const bool rewritten = !succ[i].empty() && std::all_of(succ[i].begin(), succ[i].end(), [&](MachineInstruction* j) {
+                    return r_wrt[s].contains(j);
+                });
+                if (!rewritten) {
+                    store[s].insert(i);
                 }
             }
             // If the vreg is used AND overritten on the same instruction, whe can advance the use pointer
-            for (std::size_t idx: r_use[s]) {
-                if (idx == 0 || (!r_use[s].contains(idx - 1) && !r_wrt[s].contains(idx - 1))) {
-                    load[s].insert(idx);
+            for (MachineInstruction* i: r_use[s]) {
+                const bool loaded = !pred[i].empty() && std::all_of(pred[i].begin(), pred[i].end(), [&](MachineInstruction* p) {
+                    return r_use[s].contains(p) || r_wrt[s].contains(p);
+                });
+                if (!loaded) {
+                    load[s].insert(i);
                 }
             }
         }
@@ -935,15 +948,19 @@ void allocate(MachineFunction& fct, X86& x86) {
         const Register* rbp = &x86.getReg("RBP");
         
 
+        std::unordered_map<MachineInstruction*, std::size_t> position;
+        for (std::size_t idx = 0; idx < order.size(); idx++) {
+            position[order[idx]] = idx;
+        }
         std::cout << "spilled:\n";
         for (ir::ValueId s: spilled) {
             std::cout << "  %" << s << "\tstore after";
-            for (std::size_t idx: store[s]) {
-                std::cout << " " << idx;
+            for (MachineInstruction* i: store[s]) {
+                std::cout << " " << position[i];
             }
             std::cout << "\tload before";
-            for (std::size_t idx: load[s]) {
-                std::cout << " " << idx;
+            for (MachineInstruction* i: load[s]) {
+                std::cout << " " << position[i];
             }
             std::cout << "\n";
         }

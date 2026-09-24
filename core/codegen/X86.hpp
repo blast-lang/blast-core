@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <set>
 #include <string>
 #include <string_view>
@@ -191,7 +192,7 @@ class MachineBlock {
 private:
     ir::BlockId m_id;
     std::string m_label;
-    std::vector<MachineInstruction> m_instrs;
+    std::list<MachineInstruction> m_instrs;
     std::vector<ir::BlockId> m_preds;
 
 public:
@@ -200,8 +201,8 @@ public:
     ir::BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
 
-    std::vector<MachineInstruction>& instrs() { return this->m_instrs; }
-    const std::vector<MachineInstruction>& instrs() const { return this->m_instrs; }
+    std::list<MachineInstruction>& instrs() { return this->m_instrs; }
+    const std::list<MachineInstruction>& instrs() const { return this->m_instrs; }
 
     std::vector<ir::BlockId>& preds() { return this->m_preds; }
     const std::vector<ir::BlockId>& preds() const { return this->m_preds; }
