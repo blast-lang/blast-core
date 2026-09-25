@@ -314,6 +314,7 @@ std::string machineOpcodeName(codegen::MachineOpcode op) {
     switch (op) {
         case codegen::MachineOpcode::MOV:  return "mov";
         case codegen::MachineOpcode::ADD:  return "add";
+        case codegen::MachineOpcode::SUB:  return "sub";
         case codegen::MachineOpcode::IMUL: return "imul";
         case codegen::MachineOpcode::XOR:  return "xor";
         case codegen::MachineOpcode::CMP:  return "cmp";
@@ -496,13 +497,21 @@ std::string dump(const ir::Module& m) {
 }
 
 std::string dump(const codegen::MachineFunction& mfn) {
-    std::string out;
+    std::string out = mfn.name() + ":\n";
+    for (const codegen::MachineInstruction& instr : mfn.prologue()) {
+        out += "  " + machineInstructionText(instr) + "\n";
+    }
     for (const codegen::MachineBlock& block : mfn.blocks()) {
         if (!out.empty()) {
             out += "\n";
         }
         out += block.label() + ":\n";
         for (const codegen::MachineInstruction& instr : block.instrs()) {
+            if (instr.m_op == codegen::MachineOpcode::RET) {
+                for (const codegen::MachineInstruction& e : mfn.epilogue()) {
+                    out += "  " + machineInstructionText(e) + "\n";
+                }
+            }
             out += "  " + machineInstructionText(instr) + "\n";
         }
     }
@@ -526,9 +535,20 @@ std::string emit(const codegen::X86& x86) {
         "\n"
         "    .text\n"
         "    .globl main\n"
-        "main:\n";
+        // The C runtime's CALL leaves RSP 8 bytes off a 16-byte boundary, so realign
+        // before calling blast_main or it starts misaligned too
+        "main:\n"
+        "    subq $8, %rsp\n"
+        "    call blast_main\n"
+        "    addq $8, %rsp\n"
+        "    xorl %eax, %eax\n"
+        "    ret\n";
 
     for (const codegen::MachineFunction& mfn : x86.fcts()) {
+        out += "\n" + mfn.name() + ":\n";
+        for (const codegen::MachineInstruction& instr : mfn.prologue()) {
+            out += "    " + attInstructionText(instr) + "\n";
+        }
         bool first = true;
         for (const codegen::MachineBlock& block : mfn.blocks()) {
             if (!first) {
@@ -537,6 +557,11 @@ std::string emit(const codegen::X86& x86) {
             first = false;
             out += block.label() + ":\n";
             for (const codegen::MachineInstruction& instr : block.instrs()) {
+                if (instr.m_op == codegen::MachineOpcode::RET) {
+                    for (const codegen::MachineInstruction& e : mfn.epilogue()) {
+                        out += "    " + attInstructionText(e) + "\n";
+                    }
+                }
                 out += "    " + attInstructionText(instr) + "\n";
             }
         }

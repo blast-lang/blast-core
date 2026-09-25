@@ -49,24 +49,6 @@ void X86::lowerFct(const ir::Function& fct) {
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         this->lowerBlock(mfct, fct, fct.getBlock(*it), visited);
     }
-
-    // The new entry block it still at the begining
-    std::list<MachineInstruction>& new_entry = mfct.blocks().front().instrs();
-    // Inject the 'save' frame (stack) instructions
-    const MachineOperand rbp = PREG(&this->getReg("RBP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
-    const MachineOperand rsp = PREG(&this->getReg("RSP"), {ir::Type::Kind::INT, ir::Type::Width::W64});
-    const MachineOperand eax = PREG(&this->getReg("EAX"), {ir::Type::Kind::INT, ir::Type::Width::W32});
-    new_entry.insert(new_entry.begin(), {
-        { MachineOpcode::PUSH, MNONE(), rbp },
-        { MachineOpcode::MOV, rbp, rsp }
-    });
-    // Same logic for the final block (frame teardown)
-    std::list<MachineInstruction>& new_exit = mfct.blocks().back().instrs();
-    // Insert stack pointet restore BEFORE the return statement
-    new_exit.insert(std::prev(new_exit.end()), {
-        { MachineOpcode::XOR, eax, eax },
-        { MachineOpcode::POP, rbp, MNONE() },
-    });
 }
 
 void X86::lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::BasicBlock& block, const std::vector<bool>& reachable) {
@@ -586,19 +568,9 @@ X86::X86(): m_registers(), m_families(), m_regnames() {
     }
 }
 
-
-void allocate(MachineFunction& fct, X86& x86);
-
-RegisterAllocator::RegisterAllocator(X86& x86) {
-    // Building successors
-    for (MachineFunction& f: x86.fcts()){
-        allocate(f, x86);
-    }
-}
-
-
 // https://cse.sc.edu/~mgv/csce531sp20/notes/mogensen_Ch8_Slides_register-allocation.pdf
-void allocate(MachineFunction& fct, X86& x86) {
+void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
+    std::int32_t offset = stack_offset;
     // Gives where each block starts as if
     // you concatenated all the blocks' instruction vectors into one list in layout order.
     std::vector<std::size_t> bases;
@@ -677,6 +649,7 @@ void allocate(MachineFunction& fct, X86& x86) {
         if (
             instr->m_op == MachineOpcode::MOV ||
             instr->m_op == MachineOpcode::ADD ||
+            instr->m_op == MachineOpcode::SUB ||
             instr->m_op == MachineOpcode::IMUL ||
             instr->m_op == MachineOpcode::XOR
         ) {
@@ -837,6 +810,7 @@ void allocate(MachineFunction& fct, X86& x86) {
     // Those node can be colored without spilling
     std::unordered_map<ir::ValueId, ir::ValueId> colors;
     std::set<ir::ValueId> spilled;
+    std::set<ir::ValueId> callee_saved;
     do {
         // sort operands by their remaining domain size
         // That way we color node with smallest domain first
@@ -880,7 +854,18 @@ void allocate(MachineFunction& fct, X86& x86) {
             spilled.insert(*it);
         } else {
             // Color the node with it first available color
-            colors[*it] = *domains.at(*it).begin();
+            ir::ValueId c = *domains.at(*it).begin();
+            colors[*it] = c;
+            // If we are about to use a callee-saved register in this function
+            // Mark it and we will store and load after coloring to avoid clashing
+            if (!x86.registers()[c].callerSaved() && !x86.registers()[c].reserved()) {
+                // (Heuristic) ONLY save the biggest register of a given familly
+                while(x86.registers()[c].parent() != 0) {
+                    c = x86.registers()[c].parent();
+                }
+                callee_saved.insert(c);
+            }
+
             // Tackling aliasing:
             // If we pick RAX, then EAX, AX can NOT be picked either in the interference
             // We will remove domains.at(*it) and its familly from domains
@@ -945,40 +930,143 @@ void allocate(MachineFunction& fct, X86& x86) {
             }
         }
 
-        const Register* rbp = &x86.getReg("RBP");
-        
+        // Map instruction adresses to their iterator in the list for later in-place instruction insertion
+        std::unordered_map<
+            MachineInstruction*, 
+            std::pair<std::list<MachineInstruction>*, std::list<MachineInstruction>::iterator>
+        >
+        order_map;
+        for (MachineBlock& block: fct.blocks()) {
+            for (auto it = block.instrs().begin(); it != block.instrs().end(); ++it) {
+                order_map[&*it] = std::make_pair(&block.instrs(), it);
+            }
+        }
 
-        std::unordered_map<MachineInstruction*, std::size_t> position;
-        for (std::size_t idx = 0; idx < order.size(); idx++) {
-            position[order[idx]] = idx;
-        }
-        std::cout << "spilled:\n";
+        // Now, we will actually spill by creating the load an store instructions
+        const Register* rbp = &x86.getReg("RBP");
+        // Where, relative to RBP, does the spilled register leaves for now
+        // Let's assume we reserve 8 bytes for each spilled vreg for now
+        auto typeOf = [&](MachineInstruction* i, ir::ValueId s) -> ir::Type {
+            if (i->m_dst.m_kind == MachineOperand::Kind::VREG && regId(i->m_dst) == s) {
+                return i->m_dst.m_type;
+            }
+            return i->m_src.m_type;
+        };
+
+        std::unordered_map<ir::ValueId, std::int32_t> slot;
         for (ir::ValueId s: spilled) {
-            std::cout << "  %" << s << "\tstore after";
-            for (MachineInstruction* i: store[s]) {
-                std::cout << " " << position[i];
-            }
-            std::cout << "\tload before";
-            for (MachineInstruction* i: load[s]) {
-                std::cout << " " << position[i];
-            }
-            std::cout << "\n";
+            offset += bytes(typeOf(*r_wrt[s].begin(), s).m_width);
+            slot[s] = -offset;
         }
-        throw CodegenError("[X86] Spilling !");
+
+        for (ir::ValueId s: spilled) {
+            for (MachineInstruction* i: store[s]) {
+                auto [list, it] = order_map.at(i);
+                const ir::Type t = typeOf(i, s);
+                // Insert instruction to store the spilled vreg
+                list->insert(std::next(it), { MachineOpcode::MOV, MEM(rbp, slot[s], t), VREG(s, t) });
+            }
+
+            for (MachineInstruction* i: load[s]) {
+                auto [list, it] = order_map.at(i);
+                const ir::Type t = typeOf(i, s);
+                // Insert instruction to load the spilled vreg
+                list->insert(it, { MachineOpcode::MOV, VREG(s, t), MEM(rbp, slot[s], t) });
+            }
+        }
     }
 
     // Apply the coloring by changing VREG into PREG!
-    for (auto it = order.begin(); it != order.end(); ++it) {
-        MachineInstruction* i = *it;
-        if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
-            i->m_src = PREG(&x86.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
+    // If there was spillage, we do not color and re-do everything from the new instructions
+    // TODO: optimize !
+    if (spilled.size() == 0) {
+        for (auto it = order.begin(); it != order.end(); ++it) {
+            MachineInstruction* i = *it;
+            if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
+                i->m_src = PREG(&x86.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
+            }
+            if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
+                i->m_dst = PREG(&x86.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
+            }
         }
-        if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
-            i->m_dst = PREG(&x86.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
+
+        const MachineOperand rbp = PREG(&x86.getReg("RBP"), ir::PTR());
+        const MachineOperand rsp = PREG(&x86.getReg("RSP"), ir::PTR());
+        // Inject the 'save' frame (stack) instructions
+        fct.prologue() = {
+            { MachineOpcode::PUSH, MNONE(), rbp },
+            { MachineOpcode::MOV, rbp, rsp }
+        };
+        // Now we know the total offset, we need to save if as this function's frame
+        // So that its not corrupted by callee function later on.
+        // We emit SUB offset, RSP
+        // To Same the spilling as the function's frame
+        // In SystemV, we need to make sure the frame is 16-bytes aligned
+        offset = (offset + 15) / 16 * 16;
+        /*
+                    high addresses
+                +----------------------+
+        RBP+8    | return address       |  pushed by `call blast_main`
+                +----------------------+
+        RBP+0    | saved RBP            |  push rbp        <- RBP points here
+                +======================+  ---------------------------------
+        RBP-8    | spill v8             |  \
+        RBP-16   | spill v9             |   |
+        RBP-24   | spill v10            |   |  spill slots (56 bytes)
+        RBP-32   | spill v11            |   |  addressed as [RBP - n]
+        RBP-40   | spill v12            |   |
+        RBP-48   | spill v13            |   |
+        RBP-56   | spill v3             |  /
+                +----------------------+       sub $72
+        RBP-64   | padding              |  \  rounds 56 up to 64 (multiple of 16),
+        RBP-72   | padding              |  /  then +8 because 5 pushes is odd
+                +======================+  ---------------------------------
+        RBP-80   | saved RBX            |  push rbx
+        RBP-88   | saved R12            |  push r12
+        RBP-96   | saved R13            |  push r13
+        RBP-104  | saved R14            |  push r14
+        RBP-112  | saved R15            |  push r15        <- RSP points here
+                +----------------------+
+                    low addresses          RBP-112 is a multiple of 16
+        */
+        if (callee_saved.size() % 2 == 1) {
+            offset += 8;
         }
+
+        // We emit SUB offset, RSP
+        // To Same the spilling as the function's frame
+        if (offset > 0) {
+            fct.prologue().push_back({ MachineOpcode::SUB, rsp, LIT({ .m_i64 = offset }, ir::PTR()) });
+        }
+        // Insert stack pointet restore BEFORE the return statement
+        fct.epilogue() = {
+            { MachineOpcode::MOV, rsp, rbp },
+            { MachineOpcode::POP, rbp, MNONE() }
+        };
+
+        // Save all used callee-saved register into the stack and the END of the prologue
+        for(auto it = callee_saved.begin(); it != callee_saved.end(); it++) {
+            fct.prologue().push_back({ MachineOpcode::PUSH, MNONE(), PREG(&x86.registers()[*it], ir::PTR()) });
+        }
+
+        // Restore them to their respective registers in the epilogue BEFORE teardown
+        for(auto it = callee_saved.begin(); it != callee_saved.end(); it++) {
+            fct.epilogue().push_front({ MachineOpcode::POP, PREG(&x86.registers()[*it], ir::PTR()), MNONE() });
+        }
+
+    } else {
+        // If there was some spillage, let's color the remaining of the registers!
+        allocate(fct, x86, offset);
     }
 }
 
 
+
+RegisterAllocator::RegisterAllocator(X86& x86) {
+    // Building successors
+    for (MachineFunction& f: x86.fcts()){
+        allocate(f, x86, 0);
+    }
+}
 
 } // namespace blast::core::codegen

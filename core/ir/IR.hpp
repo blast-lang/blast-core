@@ -61,6 +61,10 @@ constexpr unsigned bits(Type::Width w) {
     return 0;
 }
 
+constexpr unsigned bytes(Type::Width w) {
+    return std::max(1u, bits(w) / 8);
+}
+
 constexpr unsigned bits(Type t) {
     return bits(t.m_width);
 }

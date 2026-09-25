@@ -168,6 +168,7 @@ inline MachineOperand LIT(ir::Lireral l, ir::Type t) {
 enum class MachineOpcode: std::uint8_t {
     MOV,
     ADD,
+    SUB,
     IMUL,
     XOR,
     CMP,
@@ -220,17 +221,26 @@ private:
     // Blocks are stored in lowering order, so an IR block id is not an index
     std::unordered_map<ir::BlockId, std::size_t> m_block_index;
     ir::ValueId m_next_vreg;
+    std::list<MachineInstruction> m_prologue;
+    std::list<MachineInstruction> m_epilogue;
 
 public:
     // next_vreg carries over the IR function's value counter: vregs are IR value
     // ids until an allocator says otherwise, so temps must not reuse one.
-    MachineFunction(ir::FctId id, std::string name, ir::ValueId next_vreg): m_id(id), m_name(std::move(name)), m_blocks(), m_block_index(), m_next_vreg(next_vreg) {}
+    MachineFunction(ir::FctId id, std::string name, ir::ValueId next_vreg): m_id(id), m_name(std::move(name)), m_blocks(), m_block_index(), m_next_vreg(next_vreg), m_prologue(), m_epilogue() {}
 
     ir::FctId id() const { return this->m_id; }
     const std::string& name() const { return this->m_name; }
 
     std::vector<MachineBlock>& blocks() { return this->m_blocks; }
     const std::vector<MachineBlock>& blocks() const { return this->m_blocks; }
+
+    // Outside the CFG: filled after allocation, printed before the first block and before every RET
+    std::list<MachineInstruction>& prologue() { return this->m_prologue; }
+    const std::list<MachineInstruction>& prologue() const { return this->m_prologue; }
+
+    std::list<MachineInstruction>& epilogue() { return this->m_epilogue; }
+    const std::list<MachineInstruction>& epilogue() const { return this->m_epilogue; }
 
     MachineBlock& addBlock(ir::BlockId id, std::string label) {
         this->m_block_index[id] = this->m_blocks.size();
