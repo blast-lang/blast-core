@@ -29,6 +29,7 @@ public:
     R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
     R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
     R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
+    R visitWhileStmt(const WhileStmt& n)               { return self().visitEmpty(); }
     R visitContinueStmt(const ContinueStmt& n)         { return self().visitEmpty(); }
     R visitBlock(const Block& n)                       { return self().visitEmpty(); }
     R visitTranslationUnit(const TranslationUnit& n)   { return self().visitEmpty(); }
@@ -76,6 +77,8 @@ public:
                 return self().visitExprStmt(as<ExprStmt>(node));
             case Kind::IfStmt:
                 return self().visitIfStmt(as<IfStmt>(node));
+            case Kind::WhileStmt:
+                return self().visitWhileStmt(as<WhileStmt>(node));
             case Kind::ContinueStmt:
                 return self().visitContinueStmt(as<ContinueStmt>(node));
             case Kind::Block:

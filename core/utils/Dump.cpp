@@ -57,6 +57,9 @@ public:
         }
         return out + ")";
     }
+    std::string visitWhileStmt(const WhileStmt& n) {
+        return "(while " + visit(n.cond()) + " " + visit(n.body()) + ")";
+    }
     std::string visitContinueStmt(const ContinueStmt&) {
         return "(continue)";
     }
@@ -120,6 +123,7 @@ public:
     std::string visitCallExpr(const CallExpr&)             { return "CallExpr"; }
     std::string visitExprStmt(const ExprStmt&)             { return "ExprStmt"; }
     std::string visitIfStmt(const IfStmt&)                 { return "IfStmt"; }
+    std::string visitWhileStmt(const WhileStmt&)           { return "WhileStmt"; }
     std::string visitContinueStmt(const ContinueStmt&)     { return "ContinueStmt"; }
     std::string visitBlock(const Block&)                   { return "Block"; }
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
@@ -161,6 +165,9 @@ public:
             children.push_back({"else: ", n.elseBranch()});
         }
         return children;
+    }
+    std::vector<Child> visitWhileStmt(const WhileStmt& n) {
+        return {{"cond: ", n.cond()}, {"body: ", n.body()}};
     }
     std::vector<Child> visitVarDecl(const VarDecl& n) {
         std::vector<Child> children;

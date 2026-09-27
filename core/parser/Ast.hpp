@@ -41,7 +41,9 @@ public:
         // --- Statements ---
         ExprStmt,
         IfStmt,
+        WhileStmt,
         ContinueStmt,
+        ReturnStmt,
         Block,
         // --- Root ---
         TranslationUnit,
@@ -225,9 +227,35 @@ private:
     std::unique_ptr<Stmt> m_else;
 };
 
-class ContinueStmt : public Stmt {
+
+class WhileStmt: public Stmt {
 public:
-    ContinueStmt() : Stmt(Kind::ContinueStmt) {}
+    // elseBranch may be null.
+    WhileStmt(std::unique_ptr<Expr> cond,
+           std::unique_ptr<Block> body): // nullable
+                Stmt(Kind::WhileStmt), 
+                m_cond(std::move(cond)),
+                m_body(std::move(body))
+            {}
+    const Expr* cond() const { return m_cond.get(); }
+    const Block* body() const { return m_body.get(); }
+
+private:
+    std::unique_ptr<Expr> m_cond;
+    std::unique_ptr<Block> m_body;
+};
+
+
+class ContinueStmt: public Stmt {
+public:
+    ContinueStmt(): Stmt(Kind::ContinueStmt) {}
+};
+
+class ReturnStmt: public Stmt {
+public:
+    ReturnStmt(std::unique_ptr<Expr> ret): Stmt(Kind::ReturnStmt), m_ret(std::move(ret)) {}
+private:
+    std::unique_ptr<Expr> m_ret;
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +271,7 @@ public:
 // A variable declaration, e.g.  x::Int = 5
 //   name is required; type (the annotation after '::') and init (after '=')
 //   are each optional and null when absent.
+// Like int julia its an expression than thus x::Int = 5 evaluates to 5
 class VarDecl: public Decl {
 public:
     VarDecl(std::string name,
@@ -263,6 +292,14 @@ private:
     std::string m_name;
     std::unique_ptr<Expr> m_type;   // Identifier now; TypeExpr later (Vector{Int})
     std::unique_ptr<Expr> m_init;
+};
+
+
+// Like in Julia, Function declaration are expression that evaluates to the function object
+class FctDecl: public Decl {
+
+private:
+    std::unique_ptr<Block> m_body;
 };
 
 // ---------------------------------------------------------------------------

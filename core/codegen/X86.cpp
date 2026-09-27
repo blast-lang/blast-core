@@ -45,6 +45,9 @@ void X86::lowerFct(const ir::Function& fct) {
         const ir::BasicBlock& b = fct.getBlock(*it);
         mfct.addBlock(b.id(), mfct.name() + "__" + b.label());
     }
+
+    // Argument handling
+
     // Now, lower in postorder
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         this->lowerBlock(mfct, fct, fct.getBlock(*it), visited);
@@ -139,6 +142,20 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
         case ir::Opcode::COPY:
             mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
             break;
+        // Fct call:
+        /*
+        bar .....
+        call foo(1,2,3,...,10)
+        */
+        /*
+        higher addr   40(%rbp)  a10
+                    32(%rbp)  a9
+                    24(%rbp)  a8
+                    16(%rbp)  a7
+                    8(%rbp)  return address
+                    0(%rbp)  saved rbp      <- rbp
+        lower addr    -8(%rbp)  foo's own locals (if it has any)
+        */
         default:
             throw CodegenError("[X86] Unsupported opcode");
     }
