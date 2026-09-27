@@ -228,15 +228,16 @@ private:
 };
 
 
-class WhileStmt: public Stmt {
+
+class AbstractLoop: public Stmt {
+protected:
+    AbstractLoop(Kind kind, std::unique_ptr<Expr> cond, std::unique_ptr<Block> body):
+        Stmt(kind),
+        m_cond(std::move(cond)),
+        m_body(std::move(body))
+    {}
+
 public:
-    // elseBranch may be null.
-    WhileStmt(std::unique_ptr<Expr> cond,
-           std::unique_ptr<Block> body): // nullable
-                Stmt(Kind::WhileStmt), 
-                m_cond(std::move(cond)),
-                m_body(std::move(body))
-            {}
     const Expr* cond() const { return m_cond.get(); }
     const Block* body() const { return m_body.get(); }
 
@@ -244,6 +245,18 @@ private:
     std::unique_ptr<Expr> m_cond;
     std::unique_ptr<Block> m_body;
 };
+
+
+class WhileStmt: public AbstractLoop {
+public:
+    WhileStmt(std::unique_ptr<Expr> cond, std::unique_ptr<Block> body):
+        AbstractLoop(Kind::WhileStmt, std::move(cond), std::move(body))
+    {}
+};
+
+// ForStmt: pre, loop and post
+
+
 
 
 class ContinueStmt: public Stmt {
