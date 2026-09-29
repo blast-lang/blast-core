@@ -92,6 +92,11 @@ void ScopeResolver::visitIfStmt(const parser::IfStmt& node) {
     }
 }
 
+void ScopeResolver::visitWhileStmt(const parser::WhileStmt& node) {
+    this->visit(node.cond());
+    this->visit(node.body());
+}
+
 void ScopeResolver::visitBlock(const parser::Block& node) {
     // A block is a new scope
     Scope& block = this->m_ctx->newScope(Scope::Kind::Block, this->m_current_scope);

@@ -81,12 +81,13 @@ private:
 
 // Parsing
 protected:
-
     // Parsing Statements
     void parseStmt();
     void parseDecl();
     void parseVarDecl();
     void parseIfStmt();
+    void parseWhileStmt();
+    void parseForStmt();
     void parseBlock();
 
     // Parsing Expressions

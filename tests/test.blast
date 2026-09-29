@@ -2,17 +2,10 @@ a::Int = 1;
 b::Int = 0;
 c::Int = 0;
 
-if (a > 0) {
-    b = 10;
-    a = 10;
-} else {
-    b = 20;
-    a = 20;
-}
 
-while(a < 100) {
-    a = a + 100;
-}
-
-c = a + b;
-print(c);
+    if (b == 1) {
+        a = a * 2;
+    } else {
+        a = a * 3;
+    }
+    c = c + 1;

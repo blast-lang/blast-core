@@ -23,6 +23,7 @@ public:
     void visitCallExpr(const parser::CallExpr& node);
     void visitExprStmt(const parser::ExprStmt& node);
     void visitIfStmt(const parser::IfStmt& node);
+    void visitWhileStmt(const parser::WhileStmt& node);
     void visitBlock(const parser::Block& node);
     void visitTranslationUnit(const parser::TranslationUnit& node);
 };

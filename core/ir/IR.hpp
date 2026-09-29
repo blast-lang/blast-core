@@ -506,6 +506,7 @@ public:
     Operand visitVarDecl(const parser::VarDecl& node);
     Operand visitExprStmt(const parser::ExprStmt& node);
     Operand visitIfStmt(const parser::IfStmt& node);
+    Operand visitWhileStmt(const parser::WhileStmt& node);
     Operand visitBlock(const parser::Block& node);
     Operand visitTranslationUnit(const parser::TranslationUnit& node);
 

@@ -14,6 +14,11 @@ int bindingPower(const SimpleParser::Token& t) {
             if (t.m_value == "*" ) return 20;
             if (t.m_value == "+" ) return 10;
             if (t.m_value == ">" ) return 5;
+            if (t.m_value == "<" ) return 5;
+            if (t.m_value == "<=" ) return 5;
+            if (t.m_value == ">=" ) return 5;
+            if (t.m_value == "==" ) return 5;
+            if (t.m_value == "!=" ) return 5;
             throw ParseError("[Expr] Unknown binary operator '" + t.m_value + "'", 0);
         default:
             throw ParseError("[Expr] Not an operator", 0);
@@ -24,11 +29,13 @@ void SimpleParser::parseStmt() {
     if (this->currentToken().m_kind == TokenKind::IDENDIFIER &&
         this->nextToken().m_kind == TokenKind::COLON_COLON) {
         this->parseVarDecl();
-    } else if(
-        this->currentToken().m_kind == TokenKind::IF_STMT
-    ) {
+    } else if(this->currentToken().m_kind == TokenKind::IF_STMT) {
         this->parseIfStmt();
         // Return here as we do not expect ';' after an if stmt
+        return;
+    } else if (this->currentToken().m_kind == TokenKind::WHILE_STMT) {
+        this->parseWhileStmt();
+        // Return here as we do not expect ';' after a while stmt
         return;
     }
     else {
@@ -98,6 +105,27 @@ void SimpleParser::parseIfStmt() {
     // Push the if statement onto the stack
     this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), std::move(else_block)));
     return;
+}
+
+void SimpleParser::parseWhileStmt() {
+    // Parse the condition as expression
+    this->advance();
+    this->parseExpr();
+    std::unique_ptr<Expr> cond = this->popAs<Expr>();
+    std::unique_ptr<Block> body = nullptr;
+    if (this->currentToken().m_kind == TokenKind::OPEN_CURLBRAC) {
+        this->parseBlock();
+        body = this->popAs<Block>();
+    } else {
+        // TODO: throw
+    }
+    // Push the wile statement onto the stack
+    this->push(std::make_unique<WhileStmt>(std::move(cond), std::move(body)));
+    return;
+}
+
+void SimpleParser::parseForStmt() {
+
 }
 
 void SimpleParser::parseBlock() {

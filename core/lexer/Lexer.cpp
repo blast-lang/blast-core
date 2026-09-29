@@ -33,13 +33,22 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA open_curlbrac      = SA('{');
     Tokenizer::SA close_curlbrac     = SA('}');
     Tokenizer::SA continue_stmt      = SA(std::string_view{"continue"});
+    Tokenizer::SA break_stmt         = SA(std::string_view{"break"});
+    Tokenizer::SA return_stmt        = SA(std::string_view{"return"});
     Tokenizer::SA if_stmt            = SA(std::string_view{"if"});
     Tokenizer::SA else_stmt          = SA(std::string_view{"else"});
+    Tokenizer::SA while_stmt         = SA(std::string_view{"while"});
+    Tokenizer::SA for_stmt           = SA(std::string_view{"for"});
     // Operators
     Tokenizer::SA op_add             = SA('+');
     Tokenizer::SA op_mul             = SA('*');
     Tokenizer::SA op_assign          = SA('=');
     Tokenizer::SA op_gt              = SA('>');
+    Tokenizer::SA op_lt              = SA('<');
+    Tokenizer::SA op_gte             = SA(std::string_view{">="});
+    Tokenizer::SA op_lte             = SA(std::string_view{"<="});
+    Tokenizer::SA op_eq              = SA(std::string_view{"=="});
+    Tokenizer::SA op_nq              = SA(std::string_view{"!="});
     // Type annotation: '::' (Julia-style, e.g. a::Int)
     Tokenizer::SA colon_colon        = SA(':') + SA(':');
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
@@ -65,12 +74,21 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     this->m_rules.push_back({close_curlbrac,    0,      Tokenizer::TokenKind::CLOSE_CURLBRAC});
     
     this->m_rules.push_back({continue_stmt,     0,      Tokenizer::TokenKind::CONTINUE_STMT});
+    this->m_rules.push_back({break_stmt,        0,      Tokenizer::TokenKind::BREAK_STMT});
+    this->m_rules.push_back({return_stmt,       0,      Tokenizer::TokenKind::RETURN_STMT});
     this->m_rules.push_back({if_stmt,           0,      Tokenizer::TokenKind::IF_STMT});
     this->m_rules.push_back({else_stmt,         0,      Tokenizer::TokenKind::ELSE_STMT});
+    this->m_rules.push_back({while_stmt,        0,      Tokenizer::TokenKind::WHILE_STMT});
+    this->m_rules.push_back({for_stmt,          0,      Tokenizer::TokenKind::FOR_STMT});
     // Operators
     this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_gt,             0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_lt,             0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_gte,            0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_lte,            0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_eq,             0,      Tokenizer::TokenKind::BIN_OP});
+    this->m_rules.push_back({op_nq,             0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_assign,         0,      Tokenizer::TokenKind::ASSIGN});
     this->m_rules.push_back({colon_colon,       0,      Tokenizer::TokenKind::COLON_COLON});
     // Identifier: [a-zA-Z_][a-zA-Z0-9_]*
@@ -106,7 +124,11 @@ std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
         case Tokenizer::TokenKind::CLOSE_CURLBRAC: return "CLOSE_CURLBRAC";
         case Tokenizer::TokenKind::IF_STMT: return "IF_STMT";
         case Tokenizer::TokenKind::ELSE_STMT: return "ELSE_STMT";
+        case Tokenizer::TokenKind::WHILE_STMT: return "WHILE_STMT";
+        case Tokenizer::TokenKind::FOR_STMT: return "FOR_STMT";
         case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE_STMT";
+        case Tokenizer::TokenKind::RETURN_STMT: return "RETURN_STMT";
+        case Tokenizer::TokenKind::BREAK_STMT: return "BREAK_STMT";
         case Tokenizer::TokenKind::BIN_OP: return "BIN_OP";
         case Tokenizer::TokenKind::ASSIGN: return "ASSIGN";
         case Tokenizer::TokenKind::UNA_OP: return "UNA_OP";

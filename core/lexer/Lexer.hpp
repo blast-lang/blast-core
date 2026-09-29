@@ -114,6 +114,10 @@ public:
         IF_STMT,
         ELSE_STMT,
         CONTINUE_STMT,
+        BREAK_STMT,
+        RETURN_STMT,
+        WHILE_STMT,
+        FOR_STMT,
         // Operators
         BIN_OP,
         ASSIGN,

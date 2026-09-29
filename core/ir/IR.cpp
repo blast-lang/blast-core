@@ -11,6 +11,11 @@ Opcode opcodeFor(const std::string& op) {
     if (op == "+") return Opcode::ADD;
     if (op == "*") return Opcode::MUL;
     if (op == ">") return Opcode::GT;
+    if (op == ">=") return Opcode::GE;
+    if (op == "<") return Opcode::LT;
+    if (op == "<=") return Opcode::LE;
+    if (op == "==") return Opcode::EQ;
+    if (op == "!=") return Opcode::NE;
     throw CodegenError("unsupported operator '" + op + "'");
 }
 
@@ -179,6 +184,42 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
         this->currentFct().getBlock(join_id).preds().push_back(else_end);
         this->currentFct().addBR(else_end, join_id);
     }
+
+    // Continue forward after 'join' block
+    this->m_current_block = join_id;
+    return NONE();
+}
+
+Operand SSAIR::visitWhileStmt(const parser::WhileStmt& node) {
+    const std::string suffix = std::to_string(this->currentFct().blocks().size());
+
+    // Condition block, block following the current block
+    const BlockId cond_id = this->currentFct().addBlock("while" + suffix + ".cond");
+    // Current block jumps directly to the condition
+    this->currentFct().addBR(this->m_current_block, cond_id);
+    this->currentFct().getBlock(cond_id).preds().push_back(this->m_current_block);
+
+    // Visit condition
+    this->m_current_block = cond_id;
+    Operand cond = this->visit(node.cond());
+    
+    // Create the 'body' block as predecessor of the 'cond' block
+    const BlockId body_id = this->currentFct().addBlock("while" + suffix + ".body");
+    this->currentFct().getBlock(body_id).preds().push_back(cond_id);
+    // Create the 'join' block, that is reached atfer the 'cond' condition
+    const BlockId join_id = this->currentFct().addBlock("while" + suffix + ".join");
+    this->currentFct().getBlock(join_id).preds().push_back(cond_id);
+
+    // Condition evaluation
+    this->currentFct().addCBR(cond_id, cond, body_id, join_id);
+
+    // Visit body
+    this->m_current_block = body_id;
+    this->visit(node.body());
+    // Usefull in case of nested statements
+    const BlockId body_end = this->m_current_block;
+    // Jump from body to condition
+    this->currentFct().addBR(body_end, cond_id);
 
     // Continue forward after 'join' block
     this->m_current_block = join_id;

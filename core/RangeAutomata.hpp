@@ -41,7 +41,7 @@ public:
         std::set<StateInd> accepting,
         StateInd sink,
         std::vector<std::unordered_map<SymblRange<T>, StateInd>> transitions = {}
-    ) : m_dfa(initial, std::move(accepting), sink, std::move(transitions)) {}
+    ): m_dfa(initial, std::move(accepting), sink, std::move(transitions)) {}
 
     RangeAutomata(const RangeAutomata&) = default;
     RangeAutomata(RangeAutomata&&) noexcept = default;
