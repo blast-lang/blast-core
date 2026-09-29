@@ -2,10 +2,9 @@ a::Int = 1;
 b::Int = 0;
 c::Int = 0;
 
+while(a < 100) {
+    a = a + 1;
+}
 
-    if (b == 1) {
-        a = a * 2;
-    } else {
-        a = a * 3;
-    }
-    c = c + 1;
+
+c = a + b;

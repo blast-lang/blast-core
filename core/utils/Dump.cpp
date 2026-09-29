@@ -301,9 +301,9 @@ std::string instructionText(const ir::Instruction& instr, const ir::Function& fn
 // "%1 = PHI [entry: i64 1], [if.then: i64 20]" -- one incoming per edge into
 // the block, named by the predecessor it arrives from.
 std::string phiText(const ir::Phi& phi, const ir::Function& fn) {
-    std::string text = operandText(phi.m_result, fn) + " = PHI";
-    for (std::size_t i = 0; i < phi.m_incomings.size(); ++i) {
-        const auto& incoming = phi.m_incomings[i];
+    std::string text = operandText(phi.result(), fn) + " = PHI";
+    for (std::size_t i = 0; i < phi.incomings().size(); ++i) {
+        const auto& incoming = phi.incomings()[i];
         text += (i > 0 ? ", [" : " [") + fn.getBlock(incoming.first).label()
               + ": " + operandText(incoming.second, fn) + "]";
     }
@@ -327,6 +327,11 @@ std::string machineOpcodeName(codegen::MachineOpcode op) {
         case codegen::MachineOpcode::CMP:  return "cmp";
         case codegen::MachineOpcode::JMP:  return "jmp";
         case codegen::MachineOpcode::JG:   return "jg";
+        case codegen::MachineOpcode::JGE:  return "jge";
+        case codegen::MachineOpcode::JL:   return "jl";
+        case codegen::MachineOpcode::JLE:  return "jle";
+        case codegen::MachineOpcode::JE:   return "je";
+        case codegen::MachineOpcode::JNE:  return "jne";
         case codegen::MachineOpcode::CALL: return "call";
         case codegen::MachineOpcode::PUSH: return "push";
         case codegen::MachineOpcode::POP:  return "pop";

@@ -22,16 +22,75 @@ Opcode opcodeFor(const std::string& op) {
 } // namespace
 
 
-
-
-
-void SSAIR::setLKO(context::Symbol* s, const Operand& o) {
+void SSAIR::setLKO(context::Symbol* s, BlockId bid, const Operand& o) {
     if (s) {
         this->m_lko.insert_or_assign(
-            std::make_pair(s->id(), this->currentBlock().id()), o
+            std::make_pair(s->id(), bid), o
         );
     }
 }
+
+
+void SSAIR::fillPhi(context::Symbol* s, BlockId bid, std::size_t idx) {
+    const std::vector<BlockId> preds = this->currentFct().getBlock(bid).preds();
+    for (BlockId pred: preds) {
+        const Operand incoming = this->getLKO(s, pred);
+        this->currentFct().getBlock(bid).phis()[idx].addIncoming(pred, incoming);
+    }
+}
+
+void SSAIR::sealBlock(BasicBlock& b) {
+    const std::vector<std::pair<context::Symbol*, std::size_t>> incomplete = this->m_incomplete[b.id()];
+    for (const auto& [s, idx]: incomplete) {
+        this->fillPhi(s, b.id(), idx);
+    }
+    this->m_incomplete.erase(b.id());
+    b.seal();
+}
+
+Operand SSAIR::getLKORecurvise(context::Symbol* s, BlockId bid) {
+    Operand v = NONE();
+    const BasicBlock& b = this->currentFct().getBlock(bid);
+    const std::vector<BlockId> preds = b.preds();
+    // Are we looking for an LKO in a unsealed block?
+    // I.e block where we know the predecessor list if not yet fixed.
+    // This is needed when dependency is circular: %2 = PHI [..., %1] needs %1, and %1 = ADD %2, 1 needs %2
+    // It happens with loops
+    if (!b.sealed()) {
+        // Add an empty phi to be filled later when we 'seal' the block
+        // This is just to reserve the slot for 'v'
+        v = this->currentFct().addPhi(bid, fromContextType(s->type()));
+        this->m_incomplete[bid].push_back({s, b.phis().size() - 1});
+        this->setLKO(s, bid, v);
+        return v;
+    }
+    // No preds
+    else if (preds.empty()) {
+        return NONE();
+    }
+    // One predecessor, upstream block should have LKO
+    else if (preds.size() == 1) {
+        v = this->getLKO(s, preds[0]);
+        this->setLKO(s, bid, v);
+        return v;
+    }
+    // Several predecessors, and block sealed:
+    // Add fixed (seal) phis
+    v = this->currentFct().addPhi(bid, fromContextType(s->type()));
+    this->setLKO(s, bid, v);
+    this->fillPhi(s, bid, b.phis().size() - 1);
+
+    // This algorithm may create trivial phis like:
+    //   i64 %3 = PHI [entry: i64 0], [while1.body: i64 %3]
+    //   i64 %1 = LT i64 %0, i64 100
+    // while1.body:
+    //   i64 %2 = ADD i64 %0, i64 1
+    //
+    // We have a phi for %3 that is not set in body
+    // But can remove it during optimization pass
+    return v;
+}
+
 
 // The binding for 's' as seen from 'bid': the one recorded there, else the
 // one its predecessors carry, else a phi picking between them.
@@ -42,44 +101,15 @@ Operand SSAIR::getLKO(context::Symbol* s, BlockId bid) {
 
     // Can we find a reference of this symbol in block 'bid' ?
     // If so, return it
+    // Otherwise search for it recursivly in the predecessor chain
     auto it = this->m_lko.find(std::make_pair(s->id(), bid));
     if (it != this->m_lko.end()) {
         return it->second;
+    } else {
+        return getLKORecurvise(s, bid);
     }
-
-    const std::vector<BlockId> preds = this->currentFct().getBlock(bid).preds();
-    // No preds (entry block for example)
-    if (preds.empty()) {
-        return NONE();
-    }
-
-    // If bid only has on predecessor, check upstream
-    if (preds.size() == 1) {
-        return this->getLKO(s, preds[0]);
-    }
-
-    // If there's more predecessors, we are in a 'phi' situation
-    // Add this phi to bid, typed after the first incoming
-    const Operand phi = this->currentFct().addPhi(bid, this->getLKO(s, preds[0]).m_type);
-    const std::size_t idx = this->currentFct().getBlock(bid).phis().size() - 1;
-
-    // The next time getLKO is called on the same pair (s, bid), the phi is already computed and we can return immediately
-    this->m_lko.insert_or_assign(
-        std::make_pair(s->id(), bid), phi
-    );
-
-    std::vector<std::pair<BlockId, Operand>> incommings;
-    for(const auto& pred: preds) {
-        incommings.push_back(std::make_pair(pred, getLKO(s, pred)));
-    }
-    // Set the incommings
-    this->currentFct().getBlock(bid).phis()[idx].m_incomings = std::move(incommings);
-
-    // TODO: If all incommings are actually the same operand, we can skip the 'phi'
-
-    return phi;
+    
 }
-
 
 
 
@@ -123,14 +153,14 @@ Operand SSAIR::visitVarDecl(const parser::VarDecl& node) {
         reg = LITERAL(std::int64_t{0});
     }
     // Register attributer register for variable
-    this->setLKO(v, reg);
+    this->setLKO(v, this->m_current_block, reg);
     return reg;
 }
 
 Operand SSAIR::visitAssign(const parser::Assign& node) {
     const Operand rhs = this->visit(node.value());
     context::Symbol* s_lhs = this->m_ctx->getNodeSymbol(node.target());
-    this->setLKO(s_lhs, rhs);
+    this->setLKO(s_lhs, this->m_current_block, rhs);
     return rhs;
 }
 
@@ -152,11 +182,13 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
     
     // Connect 'cond' block to 'then' block
     this->currentFct().getBlock(then_id).preds().push_back(cond_id);
+    this->sealBlock(this->currentFct().getBlock(then_id));
 
     // Connect 'join' or 'else' depending if there's an else at all
     if (node.hasElse()) {
         else_id = this->currentFct().addBlock("if" + suffix + ".else");
         this->currentFct().getBlock(else_id).preds().push_back(cond_id);
+        this->sealBlock(this->currentFct().getBlock(else_id));
         // if a goto 'then' else goto 'else'
         this->currentFct().addCBR(cond_id, cond, then_id, else_id);
     } else {
@@ -184,6 +216,7 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
         this->currentFct().getBlock(join_id).preds().push_back(else_end);
         this->currentFct().addBR(else_end, join_id);
     }
+    this->sealBlock(this->currentFct().getBlock(join_id));
 
     // Continue forward after 'join' block
     this->m_current_block = join_id;
@@ -206,9 +239,11 @@ Operand SSAIR::visitWhileStmt(const parser::WhileStmt& node) {
     // Create the 'body' block as predecessor of the 'cond' block
     const BlockId body_id = this->currentFct().addBlock("while" + suffix + ".body");
     this->currentFct().getBlock(body_id).preds().push_back(cond_id);
+    this->sealBlock(this->currentFct().getBlock(body_id));
     // Create the 'join' block, that is reached atfer the 'cond' condition
     const BlockId join_id = this->currentFct().addBlock("while" + suffix + ".join");
     this->currentFct().getBlock(join_id).preds().push_back(cond_id);
+    this->sealBlock(this->currentFct().getBlock(join_id));
 
     // Condition evaluation
     this->currentFct().addCBR(cond_id, cond, body_id, join_id);
@@ -220,6 +255,8 @@ Operand SSAIR::visitWhileStmt(const parser::WhileStmt& node) {
     const BlockId body_end = this->m_current_block;
     // Jump from body to condition
     this->currentFct().addBR(body_end, cond_id);
+    this->currentFct().getBlock(cond_id).preds().push_back(body_end);
+    this->sealBlock(this->currentFct().getBlock(cond_id));
 
     // Continue forward after 'join' block
     this->m_current_block = join_id;
@@ -244,6 +281,7 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 }
 
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
+    this->sealBlock(this->currentFct().getBlock(0));
     const Operand last = this->visit(&unit);
     // Return 0
     this->addInstruction(LITERAL(std::int64_t{0}), NONE(), Opcode::RET);
@@ -339,7 +377,7 @@ void SSAIR::resolveCriticalEdges(Function& fct) {
 
         // Same thing for the phis
         for (Phi& phi: fct.getBlock(j).phis()) {
-            for (auto& [from, value]: phi.m_incomings) {
+            for (auto& [from, value]: phi.incomings()) {
                 if (from == i) {
                     from = newblock;
                 }

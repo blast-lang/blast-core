@@ -102,6 +102,17 @@ constexpr bool isFloat(Type t) {
     return t.m_kind == Type::Kind::FLOAT;
 }
 
+inline Type fromContextType(const context::Type* t) {
+    if (t == nullptr || t->kind() != context::Type::Kind::Primitive) {
+        throw CodegenError("[IR] Cannot lower non-primitive type");
+    }
+    const auto* p = static_cast<const context::PrimitiveType*>(t);
+    if (p->name() == "Int" && p->bitWidth() == 64) {
+        return INT(Type::Width::W64);
+    }
+    throw CodegenError("[IR] Unsupported type '" + p->name() + "'");
+}
+
 struct Lireral {
     union {
         bool m_i1;
@@ -315,9 +326,21 @@ public:
     void setComment(std::string comment) { this->m_comment = std::move(comment); }
 };
 
-struct Phi {
+class Phi {
+private:
     Operand m_result;
     std::vector<std::pair<BlockId, Operand>> m_incomings;
+
+public:
+    Phi(Operand result): m_result(result), m_incomings() {}
+
+    Operand result() const { return this->m_result; }
+
+    std::vector<std::pair<BlockId, Operand>>& incomings() { return this->m_incomings; }
+    const std::vector<std::pair<BlockId, Operand>>& incomings() const { return this->m_incomings; }
+
+    void addIncoming(BlockId from, Operand value) { this->m_incomings.push_back(std::make_pair(from, value)); }
+    void setIncomings(std::vector<std::pair<BlockId, Operand>> incomings) { this->m_incomings = std::move(incomings); }
 };
 
 class BasicBlock {
@@ -331,9 +354,14 @@ private:
     // Block parents to get Control flow Graph structure
     std::vector<BlockId>     m_preds;
     std::vector<BlockId>     m_successors;
+    // Bool flag indicating wether we finished deducing the block's predecessor list
+    bool m_is_sealed;
 
 public:
-    BasicBlock(BlockId id, std::string label): m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds(), m_successors(){}
+    BasicBlock(BlockId id, std::string label): 
+        m_id(id), m_label(std::move(label)), m_phis(), m_instrs(), m_preds(), m_successors(),
+        m_is_sealed(false)
+    {}
 
     BlockId id() const { return this->m_id; }
     const std::string& label() const { return this->m_label; }
@@ -349,6 +377,9 @@ public:
 
     std::vector<BlockId>& successors() { return this->m_successors; }
     const std::vector<BlockId>& successors() const { return this->m_successors; }
+
+    void seal() { this->m_is_sealed = true; }
+    bool sealed() const { return this->m_is_sealed; }
 
     // result is minted by the owning Function: value ids are unique per
     // function, not per block. Prefer Function::addInstruction over this.
@@ -422,7 +453,7 @@ public:
     // Incomings are filled by the caller, through getBlock(bid).phis()
     Operand addPhi(BlockId bid, Type t) {
         const Operand result = REGISTER(this->newValue(), t);
-        this->getBlock(bid).phis().push_back(Phi{ result, {} });
+        this->getBlock(bid).phis().push_back(Phi(result));
         return result;
     }
 
@@ -516,7 +547,8 @@ public:
         m_current_block(0),
         m_main(),
         m_ctx(&ctx),
-        m_lko()
+        m_lko(),
+        m_incomplete()
     {
         this->m_main.addFct("blast_main");
     }
@@ -533,11 +565,15 @@ public:
         return this->currentFct().addInstruction(this->m_current_block, lhs, rhs, op);
     }
 
-    void setLKO(context::Symbol* s, const Operand& o);
+    // Set last know operand
+    void setLKO(context::Symbol* s, BlockId bid, const Operand& o);
 
     // The binding for 's' as seen from 'bid': the one recorded there, else the
     // one its predecessors carry, else a phi picking between them.
     Operand getLKO(context::Symbol* s, BlockId bid);
+    Operand getLKORecurvise(context::Symbol* s, BlockId bid);
+    void fillPhi(context::Symbol* s, BlockId bid, std::size_t idx);
+    void sealBlock(BasicBlock& b);
 
 private:
     FctId m_current_fct;
@@ -546,6 +582,8 @@ private:
     context::ASTContext* m_ctx;
     // Map the Last Known Operand (register) attributed to a given variable
     std::unordered_map<std::pair<context::SymbolId, BlockId>, Operand, SymbolBlockHash> m_lko;
+    // Phis of unsealed blocks waiting for their incomings: (symbol, index in the block's phis)
+    std::unordered_map<BlockId, std::vector<std::pair<context::Symbol*, std::size_t>>> m_incomplete;
 
 public:
     static void resolveCriticalEdges(Function& fct);

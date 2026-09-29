@@ -69,14 +69,14 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::B
         if (isTerminator(inst.op())) {
             for (ir::BlockId succ: block.successors()) {
                 for (const ir::Phi& phi: fct.getBlock(succ).phis()) {
-                    for (const auto& [id, var]: phi.m_incomings) {
+                    for (const auto& [id, var]: phi.incomings()) {
                         if (id == block.id()) {
                             // i64 %1 = PHI [entry: i64 1], [if.then: i64 20]
                             // Becomes %1 = 1 at then end of entry block (before terminator)
                             // i64 %2 = PHI [entry: i64 0], [if.then: i64 10]
                             // Becomes %2 = 0 at then end of entry block (before terminator)
                             // Then block will also have those revoled then encountered later
-                            ir::Instruction phiresolve(phi.m_result, var, ir::NONE(), ir::Opcode::COPY);
+                            ir::Instruction phiresolve(phi.result(), var, ir::NONE(), ir::Opcode::COPY);
                             this->lowerInstruction(mfct, mblock, phiresolve);
                         }
                     }
@@ -116,19 +116,38 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
         CF (carry, the unsigned subtraction borrowed).
         */
         case ir::Opcode::GT:
+        case ir::Opcode::GE:
+        case ir::Opcode::LT:
+        case ir::Opcode::LE:
+        case ir::Opcode::EQ:
+        case ir::Opcode::NE:
             mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
             mblock.addInstruction(MachineOpcode::CMP, dst, rhs);
+            this->m_cmps[inst.result().m_value] = inst.op();
             break;
         case ir::Opcode::CBR:
             // CBR %v L1 L2 becomes
             // jg L1
             // jmp L2
-            // TODO: JG is hardcoded and the flags are assumed to come from the
-            // instruction right before. Track which comparison defines
-            // inst.result() and pick the suffix from its opcode.
-            mblock.addInstruction(MachineOpcode::JG, lhs, MNONE());
+        {
+            const auto cmp = this->m_cmps.find(inst.result().m_value);
+            if (cmp == this->m_cmps.end()) {
+                throw CodegenError("[X86] CBR condition is not a comparison");
+            }
+            MachineOpcode jump = MachineOpcode::JG;
+            switch (cmp->second) {
+                case ir::Opcode::GT: jump = MachineOpcode::JG; break;
+                case ir::Opcode::GE: jump = MachineOpcode::JGE; break;
+                case ir::Opcode::LT: jump = MachineOpcode::JL; break;
+                case ir::Opcode::LE: jump = MachineOpcode::JLE; break;
+                case ir::Opcode::EQ: jump = MachineOpcode::JE; break;
+                case ir::Opcode::NE: jump = MachineOpcode::JNE; break;
+                default: throw CodegenError("[X86] Unknown comparison");
+            }
+            mblock.addInstruction(jump, lhs, MNONE());
             mblock.addInstruction(MachineOpcode::JMP, rhs, MNONE());
             break;
+        }
         case ir::Opcode::RET:
             // The returned value sits in m_src so liveness reads it as a use:
             // as a destination it would look like a write and kill the value.
@@ -205,7 +224,7 @@ const std::set<ir::ValueId>& X86::family(ir::ValueId id) const {
     return it->second;
 }
 
-X86::X86(): m_registers(), m_families(), m_regnames() {
+X86::X86(): m_registers(), m_families(), m_regnames(), m_cmps() {
     // General purpose
     Register RAX(1, "RAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W64}, RegClass::GP, 0, false, true);
     Register EAX(2, "EAX", {.m_kind = ir::Type::Kind::INT, .m_width = ir::Type::Width::W32}, RegClass::GP, 0, false, true);

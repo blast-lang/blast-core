@@ -174,6 +174,11 @@ enum class MachineOpcode: std::uint8_t {
     CMP,
     JMP,
     JG,
+    JGE,
+    JL,
+    JLE,
+    JE,
+    JNE,
     CALL,
     PUSH,
     POP,
@@ -295,6 +300,8 @@ private:
     // Map register id's to the computed families
     std::unordered_map<ir::ValueId, std::set<ir::ValueId>> m_families;
     std::unordered_map<std::string_view, ir::ValueId> m_regnames;
+    // Which comparison produced a given value, so CBR can pick its jump
+    std::unordered_map<ir::ValueId, ir::Opcode> m_cmps;
 };
 
 // m_registers is indexed by Register::id(), so slot 0 is a placeholder standing
