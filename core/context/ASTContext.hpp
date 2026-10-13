@@ -65,6 +65,19 @@ public:
     const TupleType* getTuple(std::vector<const Type*> elements);
     FunctionType* getFunction(const TupleType* args, const Type* returns);
 
+    // Add a function to the program, its id is its position in the list
+    FunctionInfo* registerFunction(const std::string& name, FunctionInfo::Linkage linkage, Symbol* symbol) {
+        const FunctionId id = static_cast<FunctionId>(this->m_fct_infos.size());
+        this->m_fct_infos.push_back(std::make_unique<FunctionInfo>(FunctionInfo{id, name, linkage, symbol}));
+        FunctionInfo* fct = this->m_fct_infos.back().get();
+        if (symbol) {
+            symbol->setFunction(fct);
+        }
+        return fct;
+    }
+
+    const std::vector<std::unique_ptr<FunctionInfo>>& functions() const { return this->m_fct_infos; }
+
 private:
     // Core containing builtins symbols
     Scope m_core;
@@ -81,6 +94,9 @@ private:
     std::map<std::vector<TypeId>, const TupleType*> m_tuples;
     // Map a Function's (args, returns) ids to its underlying unique type
     std::map<std::pair<TypeId, TypeId>, FunctionType*> m_functions;
+    // Every function of the program, indexed by FunctionId. Held by pointer so
+    // growing the vector never moves a record a Symbol points at
+    std::vector<std::unique_ptr<FunctionInfo>> m_fct_infos;
     
     // Map nodes to their deduced types
     std::unordered_map<parser::NodeId, Type*> m_node_types;

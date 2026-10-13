@@ -259,7 +259,8 @@ std::string typeName(ir::Type t) {
 
 // Blocks are labels, not values: they carry no type worth printing. The owning
 // function is what maps the id back to the label the block header prints.
-std::string operandText(const ir::Operand& op, const ir::Function& fn) {
+// The module maps a FUNCTION operand's id to its name; without one, print the id
+std::string operandText(const ir::Operand& op, const ir::Function& fn, const ir::Module* m = nullptr) {
     const std::string type = typeName(op.m_type) + " ";
     switch (op.m_kind) {
         case ir::Operand::Kind::NONE:     return "";
@@ -267,13 +268,15 @@ std::string operandText(const ir::Operand& op, const ir::Function& fn) {
         case ir::Operand::Kind::REGISTER: return type + "%" + std::to_string(op.m_value);
         case ir::Operand::Kind::LITERAL:
             return type + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
+        case ir::Operand::Kind::FUNCTION:
+            return "@" + (m ? m->fcts()[op.m_fct].name() : std::to_string(op.m_fct));
     }
     return "?";
 }
 
 // "%0 = ADD %1, 2" -- the result is dropped for instructions that produce no
 // value (the terminators), and an operand left NONE is simply not printed.
-std::string instructionText(const ir::Instruction& instr, const ir::Function& fn) {
+std::string instructionText(const ir::Instruction& instr, const ir::Function& fn, const ir::Module* m = nullptr) {
     std::string text;
     // CBR reads its result slot instead of defining it, so it prints as a
     // leading operand rather than as an assignment.
@@ -281,6 +284,23 @@ std::string instructionText(const ir::Instruction& instr, const ir::Function& fn
         text += operandText(instr.result(), fn) + " = ";
     }
     text += opcodeName(instr.op());
+    // CALL's rhs is only an index into the function's argument lists, so print
+    // the arguments themselves: "CALL @print(i64 %0)"
+    if (instr.op() == ir::Opcode::CALL) {
+        text += " " + operandText(instr.lhs(), fn, m) + "(";
+        const std::vector<ir::Operand>& args = fn.callArgs(instr);
+        for (std::size_t i = 0; i < args.size(); ++i) {
+            if (i > 0) {
+                text += ", ";
+            }
+            text += operandText(args[i], fn);
+        }
+        text += ")";
+        if (!instr.comment().empty()) {
+            text += "  // " + instr.comment();
+        }
+        return text;
+    }
     if (instr.op() == ir::Opcode::CBR) {
         text += " " + operandText(instr.result(), fn) + ",";
     }
@@ -533,7 +553,9 @@ std::string dumpTree(const ASTNode* node) {
     return out;
 }
 
-std::string dump(const ir::Function& fn) {
+namespace {
+
+std::string functionText(const ir::Function& fn, const ir::Module* m) {
     std::string out = "fn @" + fn.name() + "(";
     for (std::size_t i = 0; i < fn.args().size(); ++i) {
         if (i > 0) {
@@ -548,17 +570,27 @@ std::string dump(const ir::Function& fn) {
             out += "  " + phiText(phi, fn) + "\n";
         }
         for (const ir::Instruction& instr : block.instrs()) {
-            out += "  " + instructionText(instr, fn) + "\n";
+            out += "  " + instructionText(instr, fn, m) + "\n";
         }
     }
     out += "}\n";
     return out;
 }
 
+} // namespace
+
+std::string dump(const ir::Function& fn) {
+    return functionText(fn, nullptr);
+}
+
 std::string dump(const ir::Module& m) {
     std::string out;
     for (const ir::Function& fn : m.fcts()) {
-        out += dump(fn);
+        // External functions have no body to print
+        if (fn.isExternal()) {
+            continue;
+        }
+        out += functionText(fn, &m);
     }
     return out;
 }

@@ -14,6 +14,10 @@ class Decl;
 
 namespace blast::core::context {
 class Scope;
+struct FunctionInfo;
+
+// Index of a function in the context's function list, in declaration order
+using FunctionId = std::uint32_t;
 
 // Identity of a binding within its function frame. The id of a symbol the
 // resolver has not placed in a frame yet.
@@ -51,7 +55,7 @@ public:
     Symbol(const Symbol&) = delete;
     Symbol& operator=(const Symbol&) = delete;
     Symbol(Kind kind, SymbolId id, std::string name, Scope* parent = nullptr): 
-        m_kind(kind), m_id(id), m_name(std::move(name)), m_parent_scope(parent), m_type(nullptr)
+        m_kind(kind), m_id(id), m_name(std::move(name)), m_parent_scope(parent), m_type(nullptr), m_function(nullptr)
     {}
 
     Kind kind() const { return this->m_kind; }
@@ -60,7 +64,11 @@ public:
 
     Type* type() { return this->m_type; }
     void setType(Type* type) { this->m_type = type; }
-    
+
+    // Set only for Kind::Function symbols
+    FunctionInfo* function() { return this->m_function; }
+    void setFunction(FunctionInfo* function) { this->m_function = function; }
+
 private:
     // Type of Symbol
     Kind m_kind;
@@ -72,6 +80,23 @@ private:
     Scope* m_parent_scope;
     // Deduced type of Symbol, deduced from static analysis
     Type* m_type;
+    // Function record, for function symbols
+    FunctionInfo* m_function;
+};
+
+// A function of the program, known before IR lowering
+struct FunctionInfo {
+    // Where the function's body comes from
+    enum class Linkage {
+        Internal,   // written in this program, lowered to IR
+        External,   // lives outside (runtime), only declared in IR
+    };
+
+    FunctionId id;
+    std::string name;
+    Linkage linkage;
+    // Null for functions with no source name, like blast_main
+    Symbol* symbol;
 };
 
 

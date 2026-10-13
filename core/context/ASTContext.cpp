@@ -29,10 +29,14 @@ ASTContext::ASTContext():
         //---------------------------
         // Builtin Functions
         //---------------------------
+        // The unit's top-level code, always function 0
+        this->registerFunction("blast_main", FunctionInfo::Linkage::Internal, nullptr);
+
         auto PRINT_ARGS_T = this->getTuple({INT_T});
         auto PRINT_T = this->getFunction(PRINT_ARGS_T, NOTHING_T);
         auto PRINT_S = this->declare(this->m_core, "print", Symbol::Kind::Function);
         PRINT_S->setType(PRINT_T);
+        this->registerFunction("print", FunctionInfo::Linkage::External, PRINT_S);
 
 
         // Make 'main' (the unit to be analysed) import all Core symbols by default

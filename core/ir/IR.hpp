@@ -103,6 +103,10 @@ constexpr bool isFloat(Type t) {
 }
 
 inline Type fromContextType(const context::Type* t) {
+    // 'Nothing' carries no value, it is what a function returns when it returns nothing
+    if (t != nullptr && t->kind() == context::Type::Kind::Struct && t->name() == "Nothing") {
+        return VOID();
+    }
     if (t == nullptr || t->kind() != context::Type::Kind::Primitive) {
         throw CodegenError("[IR] Cannot lower non-primitive type");
     }
@@ -403,14 +407,21 @@ private:
     ValueId m_next_value;
     // Argument lists of the CALLs in this function, indexed by the call's rhs
     std::vector<std::vector<Operand>> m_call_args;
+    // Copied from the context: an external function is only a declaration,
+    // its body lives outside (runtime), so it has no blocks
+    bool m_external;
 
 public:
-    Function(FctId id, std::string name, Type ret = VOID()):
+    Function(FctId id, std::string name, Type ret = VOID(), bool external = false):
         m_id(id), m_name(name), m_blocks(), m_args(), m_ret(ret), m_next_value(0),
-        m_call_args()
+        m_call_args(), m_external(external)
     {
-        this->addBlock("entry");
+        if (!external) {
+            this->addBlock("entry");
+        }
     }
+
+    bool isExternal() const { return this->m_external; }
 
     BlockId addBlock(std::string label) {
         const BlockId id = this->m_blocks.size();
@@ -499,8 +510,8 @@ private:
 public:
     Module() = default;
 
-    void addFct(std::string name, Type ret = VOID()) {
-        this->m_fcts.push_back(Function(this->m_fcts.size(), name, ret));
+    void addFct(std::string name, Type ret = VOID(), bool external = false) {
+        this->m_fcts.push_back(Function(this->m_fcts.size(), name, ret, external));
     }
 
     std::vector<Function>& fcts() { return this->m_fcts; }
@@ -550,9 +561,7 @@ public:
         m_ctx(&ctx),
         m_lko(),
         m_incomplete()
-    {
-        this->m_main.addFct("blast_main");
-    }
+    {}
 
     Function& currentFct() {
         return this->m_main.getFct(this->m_current_fct);

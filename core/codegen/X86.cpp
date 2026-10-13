@@ -13,6 +13,10 @@ namespace blast::core::codegen {
 void X86::lower(const ir::Module& mod) {
     // TODO: Link fi last block to fi+1 first block ?
     for (const ir::Function& fct : mod.fcts()) {
+        // External functions have no body to lower, the runtime provides it
+        if (fct.isExternal()) {
+            continue;
+        }
         this->lowerFct(fct);
     }
 }

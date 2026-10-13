@@ -165,17 +165,25 @@ Operand SSAIR::visitAssign(const parser::Assign& node) {
 }
 
 Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
-    Operand callee = this->visit(node.callee());
+    // The callee name was resolved by the ScopeResolver, its symbol carries the
+    // function's id, which is also its FctId in the IR module
+    context::Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
+    if (s == nullptr || s->function() == nullptr) {
+        throw CodegenError("[IR] Callee is not a function");
+    }
+    const Operand callee = FUNCTION(s->function()->id);
+
     std::vector<Operand> args;
     args.reserve(node.args().size());
     for (const auto& arg: node.args()) {
         args.push_back(this->visit(arg.get()));
     }
 
-    // TODO:
     // Call  m_ctx->getNodeType(&node)
     // Lower with fromContextType
-    return this->currentFct().addCall(this->currentBlock().id(), callee, args, VOID());
+    // The call returns what the callee's signature (lowered in run) returns
+    const Type ret = this->m_main.getFct(callee.m_fct).ret();
+    return this->currentFct().addCall(this->currentBlock().id(), callee, args, ret);
 }
 
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
@@ -295,11 +303,38 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 }
 
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
+    // One IR function per function known to the context, in the same order,
+    // so an IR FctId is always equal to the context's FunctionId
+    for (const auto& fct: this->m_ctx->functions()) {
+        const bool external = fct->linkage == context::FunctionInfo::Linkage::External;
+
+        // No symbol (blast_main): no signature to read, keep the defaults
+        if (fct->symbol == nullptr) {
+            this->m_main.addFct(fct->name, VOID(), external);
+            continue;
+        }
+
+        // Lower the signature the context deduced for this function
+        const context::Type* t = fct->symbol->type();
+        if (t == nullptr || t->kind() != context::Type::Kind::Function) {
+            throw CodegenError("[IR] Function '" + fct->name + "' has no function type");
+        }
+        const auto* signature = static_cast<const context::FunctionType*>(t);
+        this->m_main.addFct(fct->name, fromContextType(signature->returns()), external);
+        for (const context::Type* param: signature->args()->elements()) {
+            this->m_main.fcts().back().addArg(fromContextType(param));
+        }
+    }
+
     this->sealBlock(this->currentFct().getBlock(0));
     const Operand last = this->visit(&unit);
     // Return 0
     this->addInstruction(LITERAL(std::int64_t{0}), NONE(), Opcode::RET);
     for (Function& fct: this->m_main.fcts()) {
+        // External functions have no blocks to work on
+        if (fct.isExternal()) {
+            continue;
+        }
         resolveCriticalEdges(fct);
     }
     return this->m_main;
