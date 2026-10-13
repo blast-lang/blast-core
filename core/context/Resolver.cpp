@@ -28,7 +28,7 @@ void ScopeResolver::visitVarDecl(const parser::VarDecl& node) {
     }
 
     // Let's declare this new symbol in the scope
-    Symbol* v = this->m_current_scope->declare(node.name(), Symbol::Kind::Variable);
+    Symbol* v = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Variable);
     // Let's bind this node to its resolved symbol
     this->m_ctx->setNodeSymbol(&node, v);
     
@@ -72,16 +72,6 @@ void ScopeResolver::visitCallExpr(const parser::CallExpr& node) {
     Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
     // Set a CallExpr symbols as it's callee's symbol
     this->m_ctx->setNodeSymbol(&node, s);
-
-
-    // TODO: Do that in Type Resolver
-    std::printf("[AF] Calling fct %.*s with arguments: \n", int(s->name().size()), s->name().data());
-    for (const auto& arg: node.args()) {
-        Symbol* a = this->m_ctx->getNodeSymbol(arg.get());
-        if (a) {
-            std::printf("\t %.*s \n", int(a->name().size()), a->name().data());
-        }
-    }
 }
 
 void ScopeResolver::visitIfStmt(const parser::IfStmt& node) {
@@ -158,7 +148,17 @@ const Type* TypeResolver::visitAssign(const parser::Assign& node) {
 }
 
 const Type* TypeResolver::visitCallExpr(const parser::CallExpr& node) {
-    return nullptr;
+    this->visit(node.callee());
+    for (const auto& arg: node.args()) {
+        this->visit(arg.get());
+    }
+    // Now that this call has been visited, it has a symbol
+    Symbol* s = this->m_ctx->getNodeSymbol(&node);
+
+    std::printf("[AF] Calling fct '%.*s' ", int(s->name().size()), s->name().data());
+    std::printf("with type %.*s \n", int(s->type()->name().size()), s->type()->name().data());
+
+    return s->type();
 }
 
 }

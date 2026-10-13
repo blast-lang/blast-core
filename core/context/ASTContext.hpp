@@ -3,7 +3,9 @@
 #include <core/context/Scope.hpp>
 #include <core/parser/Ast.hpp>
 #include <vector>
+#include <map>
 #include <unordered_map>
+#include <utility>
 
 namespace blast::core::context {
 // Everything one translation unit owns beyond its syntax tree: the types, the
@@ -30,6 +32,10 @@ public:
         return *this->m_scopes.back();
     }
 
+    Symbol* declare(Scope& scope, const std::string& name, Symbol::Kind kind) {
+        return scope.declare(name, kind, this->m_next_symbol_id++);
+    }
+
     void setNodeType(const parser::ASTNode* node, Type* type) {
         this->m_node_types.emplace(node->id(), type);
     }
@@ -48,6 +54,17 @@ public:
         return it == this->m_node_symbls.end() ? nullptr : it->second;
     }
 
+    template <typename T>
+    T* registerType(std::unique_ptr<T> type) {
+        T* raw = type.get();
+        raw->m_id = static_cast<TypeId>(this->m_types.size());
+        this->m_types.push_back(std::move(type));
+        return raw;
+    }
+
+    const TupleType* getTuple(std::vector<const Type*> elements);
+    FunctionType* getFunction(const TupleType* args, const Type* returns);
+
 private:
     // Core containing builtins symbols
     Scope m_core;
@@ -57,8 +74,14 @@ private:
     // moves a Scope a Symbol or a child scope already points at
     std::vector<std::unique_ptr<Scope>> m_scopes;
     ScopeId m_next_scope_id;
+    SymbolId m_next_symbol_id;
     // Unique set of Types, indexed by TypeId
     std::vector<std::unique_ptr<Type>> m_types;
+    // Map Tuple's content to its underlying unique type
+    std::map<std::vector<TypeId>, const TupleType*> m_tuples;
+    // Map a Function's (args, returns) ids to its underlying unique type
+    std::map<std::pair<TypeId, TypeId>, FunctionType*> m_functions;
+    
     // Map nodes to their deduced types
     std::unordered_map<parser::NodeId, Type*> m_node_types;
     // Map nodes to their deduced symbols

@@ -534,6 +534,7 @@ public:
     Operand visitIdentifier(const parser::Identifier& node);
     Operand visitBinaryExpr(const parser::BinaryExpr& node);
     Operand visitAssign(const parser::Assign& node);
+    Operand visitCallExpr(const parser::CallExpr& node);
     Operand visitVarDecl(const parser::VarDecl& node);
     Operand visitExprStmt(const parser::ExprStmt& node);
     Operand visitIfStmt(const parser::IfStmt& node);

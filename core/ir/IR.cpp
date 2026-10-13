@@ -164,6 +164,20 @@ Operand SSAIR::visitAssign(const parser::Assign& node) {
     return rhs;
 }
 
+Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
+    Operand callee = this->visit(node.callee());
+    std::vector<Operand> args;
+    args.reserve(node.args().size());
+    for (const auto& arg: node.args()) {
+        args.push_back(this->visit(arg.get()));
+    }
+
+    // TODO:
+    // Call  m_ctx->getNodeType(&node)
+    // Lower with fromContextType
+    return this->currentFct().addCall(this->currentBlock().id(), callee, args, VOID());
+}
+
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
     return this->visit(node.expr());
 }

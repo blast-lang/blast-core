@@ -92,7 +92,7 @@ public:
     {}
 
     bool hasSymbol(std::string_view name) const;
-    Symbol* declare(const std::string& name, Symbol::Kind kind);
+    Symbol* declare(const std::string& name, Symbol::Kind kind, SymbolId id);
     // Find a symbol in this scope, or parent scopes
     Symbol* lookup(std::string_view name) const;
 

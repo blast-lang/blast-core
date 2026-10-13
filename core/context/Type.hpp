@@ -9,7 +9,10 @@ namespace blast::core::context {
 using TypeId = std::uint32_t;
 inline constexpr TypeId INVALID_TYPE_ID = static_cast<TypeId>(-1);
 
+class ASTContext;
+
 class Type {
+    friend class ASTContext;
 public:
     enum class Kind {
         Unknown,     // placeholder for "not yet inferred" / "cannot infer"
@@ -21,7 +24,7 @@ public:
     };
 
 public:
-    Type(Kind kind, std::string name, const Type* super, TypeId id): m_kind(kind), m_name(std::move(name)), m_super(super), m_id(id) {}
+    Type(Kind kind, std::string name, const Type* super): m_kind(kind), m_name(std::move(name)), m_super(super), m_id(INVALID_TYPE_ID) {}
     virtual ~Type() = default;
 
     // Uniqued by the context; copying one would break identity comparison.
@@ -47,15 +50,14 @@ private:
 // ------------------------------------
 // Simple Types
 // ------------------------------------
-
 class AbstractType: public Type {
 public:
-    AbstractType(std::string name, const Type* super, TypeId id): Type(Kind::Abstract, std::move(name), super, id) {}
+    AbstractType(std::string name, const Type* super): Type(Kind::Abstract, std::move(name), super) {}
 };
 
 class PrimitiveType: public Type {
 public:
-    PrimitiveType(std::string name, const Type* super, TypeId id, std::size_t bitWidth): Type(Kind::Primitive, std::move(name), super, id), m_bit_width(bitWidth) {}
+    PrimitiveType(std::string name, const Type* super, std::size_t bitWidth): Type(Kind::Primitive, std::move(name), super), m_bit_width(bitWidth) {}
     // The width the declaration asks for, e.g. 64 for Int64. Distinct from
     // the ABI size and alignment the type gets on a given target, which the
     // DataLayout decides.
@@ -78,7 +80,7 @@ public:
 
 public:
     // Field *order* is part of the declaration, the offset will be done during DataLayout phase
-    StructType(std::string name, const Type* super, TypeId id, std::vector<StructType::Field> fields): Type(Kind::Struct, std::move(name), super, id), m_fields(std::move(fields)) {}
+    StructType(std::string name, const Type* super, std::vector<StructType::Field> fields): Type(Kind::Struct, std::move(name), super), m_fields(std::move(fields)) {}
     const std::vector<StructType::Field>& fields() const { return this->m_fields; }
 private:
     std::vector<StructType::Field> m_fields;
@@ -90,7 +92,7 @@ private:
 // This only works because this is an immutable sequence
 class TupleType: public Type {
 public:
-    TupleType(std::string name, const Type* super, TypeId id, std::vector<const Type*> elements): Type(Kind::Tuple, std::move(name), super, id), m_elements(std::move(elements)) {}
+    TupleType(std::string name, const Type* super, std::vector<const Type*> elements): Type(Kind::Tuple, std::move(name), super), m_elements(std::move(elements)) {}
     const std::vector<const Type*>& elements() const { return this->m_elements; }
 private:
     std::vector<const Type*> m_elements;
@@ -100,8 +102,8 @@ private:
 // Invariant: two function types are related only if identical.
 class FunctionType: public Type {
 public:
-    FunctionType(std::string name, const Type* super, TypeId id, const TupleType* args, const Type* returns):
-        Type(Kind::Function, std::move(name), super, id), m_args(args), m_returns(returns) {}
+    FunctionType(std::string name, const Type* super, const TupleType* args, const Type* returns):
+        Type(Kind::Function, std::move(name), super), m_args(args), m_returns(returns) {}
 
     const TupleType* args() const { return this->m_args; }
     const Type* returns() const { return this->m_returns; }

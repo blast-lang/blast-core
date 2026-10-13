@@ -6,12 +6,12 @@ bool Scope::hasSymbol(std::string_view name) const {
     return this->m_symbol_index.contains(name);
 }
 
-Symbol* Scope::declare(const std::string& name, Symbol::Kind kind) {
+Symbol* Scope::declare(const std::string& name, Symbol::Kind kind, SymbolId id) {
     if (this->hasSymbol(name)) {
         // Throw "Symbol already Declared in this Scope"
         return nullptr;
     }
-    std::unique_ptr<Symbol> new_symbl = std::make_unique<Symbol>(kind, this->m_symbols.size(), name, this);
+    std::unique_ptr<Symbol> new_symbl = std::make_unique<Symbol>(kind, id, name, this);
     Symbol* new_symbl_ptr = new_symbl.get();
     // Add new symbol declaration in order
     this->m_symbols.push_back(std::move(new_symbl));
