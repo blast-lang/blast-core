@@ -61,7 +61,6 @@ int main(int argc, char* argv[]) {
         std::fprintf(stderr, "blastc: %s\n", e.what());
         return 1;
     }
-
     
     try {
         blast::core::ir::SSAIR lowerer(ctx);

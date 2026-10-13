@@ -383,6 +383,17 @@ char widthSuffix(ir::Type type) {
     }
 }
 
+std::string ptrSize(ir::Type type) {
+    switch (type.m_width) {
+        case ir::Type::Width::W8:  return "BYTE PTR ";
+        case ir::Type::Width::W16: return "WORD PTR ";
+        case ir::Type::Width::W32: return "DWORD PTR ";
+        case ir::Type::Width::W64: return "QWORD PTR ";
+        default:
+            throw CodegenError("[emit] No PTR size for width " + std::to_string(ir::bits(type)));
+    }
+}
+
 std::string mnemonic(codegen::MachineOpcode op) {
     const std::string name = machineOpcodeName(op);
     if (name == "?") {
@@ -414,6 +425,37 @@ std::string attOperandText(const codegen::MachineOperand& op) {
             return op.m_sym + "(%rip)";
         case codegen::MachineOperand::Kind::LIT:
             return "$" + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
+        case codegen::MachineOperand::Kind::VREG:
+            throw CodegenError("[emit] Virtual register %" + std::to_string(op.m_vreg) + " left at emit time");
+        default:
+            throw CodegenError("[emit] Unsupported operand kind at emit time");
+    }
+}
+
+std::string intelOperandText(const codegen::MachineOperand& op) {
+    switch (op.m_kind) {
+        case codegen::MachineOperand::Kind::PREG: {
+            if (op.m_preg == nullptr) {
+                throw CodegenError("[emit] Physical register operand without a register");
+            }
+            std::string text = op.m_preg->label();
+            for (char& c : text) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            return text;
+        }
+        case codegen::MachineOperand::Kind::MEM: {
+            codegen::MachineOperand base = op;
+            base.m_kind = codegen::MachineOperand::Kind::PREG;
+            return ptrSize(op.m_type) + "[" + intelOperandText(base)
+                 + (op.m_offset < 0 ? "" : "+") + std::to_string(op.m_offset) + "]";
+        }
+        case codegen::MachineOperand::Kind::SYM:
+            return op.m_sym;
+        case codegen::MachineOperand::Kind::RIP:
+            return "[rip + " + op.m_sym + "]";
+        case codegen::MachineOperand::Kind::LIT:
+            return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
         case codegen::MachineOperand::Kind::VREG:
             throw CodegenError("[emit] Virtual register %" + std::to_string(op.m_vreg) + " left at emit time");
         default:
@@ -453,6 +495,19 @@ std::string attInstructionText(const codegen::MachineInstruction& instr) {
         return head + attOperandText(instr.m_dst);
     }
     return head + attOperandText(instr.m_src) + ", " + attOperandText(instr.m_dst);
+}
+
+std::string intelInstructionText(const codegen::MachineInstruction& instr) {
+    std::string text = mnemonic(instr.m_op);
+    bool has_operand = false;
+    if (instr.m_dst.m_kind != codegen::MachineOperand::Kind::NONE) {
+        text += " " + intelOperandText(instr.m_dst);
+        has_operand = true;
+    }
+    if (instr.m_src.m_kind != codegen::MachineOperand::Kind::NONE) {
+        text += (has_operand ? ", " : " ") + intelOperandText(instr.m_src);
+    }
+    return text;
 }
 
 } // namespace
@@ -545,21 +600,22 @@ std::string emit(const codegen::X86& x86) {
     std::string out =
         "    .section .note.GNU-stack,\"\",@progbits\n"
         "\n"
+        "    .intel_syntax noprefix\n"
         "    .text\n"
         "    .globl main\n"
         // The C runtime's CALL leaves RSP 8 bytes off a 16-byte boundary, so realign
         // before calling blast_main or it starts misaligned too
         "main:\n"
-        "    subq $8, %rsp\n"
+        "    sub rsp, 8\n"
         "    call blast_main\n"
-        "    addq $8, %rsp\n"
-        "    xorl %eax, %eax\n"
+        "    add rsp, 8\n"
+        "    xor eax, eax\n"
         "    ret\n";
 
     for (const codegen::MachineFunction& mfn : x86.fcts()) {
         out += "\n" + mfn.name() + ":\n";
         for (const codegen::MachineInstruction& instr : mfn.prologue()) {
-            out += "    " + attInstructionText(instr) + "\n";
+            out += "    " + intelInstructionText(instr) + "\n";
         }
         bool first = true;
         for (const codegen::MachineBlock& block : mfn.blocks()) {
@@ -571,10 +627,10 @@ std::string emit(const codegen::X86& x86) {
             for (const codegen::MachineInstruction& instr : block.instrs()) {
                 if (instr.m_op == codegen::MachineOpcode::RET) {
                     for (const codegen::MachineInstruction& e : mfn.epilogue()) {
-                        out += "    " + attInstructionText(e) + "\n";
+                        out += "    " + intelInstructionText(e) + "\n";
                     }
                 }
-                out += "    " + attInstructionText(instr) + "\n";
+                out += "    " + intelInstructionText(instr) + "\n";
             }
         }
     }

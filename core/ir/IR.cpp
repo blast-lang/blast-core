@@ -175,9 +175,9 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
 
     const std::string suffix = std::to_string(this->currentFct().blocks().size());
     // Create the 'then' block as predecessor of the 'cond' block
-    const BlockId then_id = this->currentFct().addBlock("if" + suffix + ".then");
+    const BlockId then_id = this->currentFct().addBlock("if" + suffix + "_then");
     // Create the 'join' block, that is reach after 'then' or if 'cond' is false
-    const BlockId join_id = this->currentFct().addBlock("if" + suffix + ".join");
+    const BlockId join_id = this->currentFct().addBlock("if" + suffix + "_join");
     BlockId else_id = 0;
     
     // Connect 'cond' block to 'then' block
@@ -186,7 +186,7 @@ Operand SSAIR::visitIfStmt(const parser::IfStmt& node) {
 
     // Connect 'join' or 'else' depending if there's an else at all
     if (node.hasElse()) {
-        else_id = this->currentFct().addBlock("if" + suffix + ".else");
+        else_id = this->currentFct().addBlock("if" + suffix + "_else");
         this->currentFct().getBlock(else_id).preds().push_back(cond_id);
         this->sealBlock(this->currentFct().getBlock(else_id));
         // if a goto 'then' else goto 'else'
@@ -227,7 +227,7 @@ Operand SSAIR::visitWhileStmt(const parser::WhileStmt& node) {
     const std::string suffix = std::to_string(this->currentFct().blocks().size());
 
     // Condition block, block following the current block
-    const BlockId cond_id = this->currentFct().addBlock("while" + suffix + ".cond");
+    const BlockId cond_id = this->currentFct().addBlock("while" + suffix + "_cond");
     // Current block jumps directly to the condition
     this->currentFct().addBR(this->m_current_block, cond_id);
     this->currentFct().getBlock(cond_id).preds().push_back(this->m_current_block);
@@ -237,11 +237,11 @@ Operand SSAIR::visitWhileStmt(const parser::WhileStmt& node) {
     Operand cond = this->visit(node.cond());
     
     // Create the 'body' block as predecessor of the 'cond' block
-    const BlockId body_id = this->currentFct().addBlock("while" + suffix + ".body");
+    const BlockId body_id = this->currentFct().addBlock("while" + suffix + "_body");
     this->currentFct().getBlock(body_id).preds().push_back(cond_id);
     this->sealBlock(this->currentFct().getBlock(body_id));
     // Create the 'join' block, that is reached atfer the 'cond' condition
-    const BlockId join_id = this->currentFct().addBlock("while" + suffix + ".join");
+    const BlockId join_id = this->currentFct().addBlock("while" + suffix + "_join");
     this->currentFct().getBlock(join_id).preds().push_back(cond_id);
     this->sealBlock(this->currentFct().getBlock(join_id));
 
