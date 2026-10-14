@@ -1,5 +1,6 @@
 add_library(codegen STATIC
     X86.hpp X86.cpp
+    X86builtins.cpp
 )
 
 set_target_properties(codegen PROPERTIES

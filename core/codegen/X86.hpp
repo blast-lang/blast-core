@@ -128,6 +128,10 @@ inline MachineOperand PREG(const Register* r, ir::Type t) {
     };
 }
 
+inline MachineOperand PREG(const Register* r) {
+    return PREG(r, r->type());
+}
+
 inline MachineOperand MEM(const Register* base, std::int32_t offset, ir::Type t) {
     return {
         .m_kind = MachineOperand::Kind::MEM,
@@ -282,14 +286,15 @@ public:
     void lower(const ir::Module& mod);
 
     const std::vector<Register>& registers() const { return this->m_registers; }
-    ir::ValueId getRegId(const std::string& name);
-    const Register& getReg(const std::string& name);
+    ir::ValueId getRegId(const std::string& name) const;
+    const Register& getReg(const std::string& name) const;
+    MachineOperand getPREG(const std::string& name) const;
     const std::set<ir::ValueId>& family(ir::ValueId id) const;
 
 private:
     void lowerFct(const ir::Function& fct);
     void lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::BasicBlock& block, const std::vector<bool>& reachable);
-    void lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir::Instruction& inst);
+    void lowerInstruction(MachineFunction& mfct, const ir::Function& fct, MachineBlock& mblock, const ir::Instruction& inst);
     MachineOperand lowerOperand(MachineFunction& mfct, ir::Operand op);
 
 private:
@@ -302,7 +307,11 @@ private:
     std::unordered_map<std::string_view, ir::ValueId> m_regnames;
     // Which comparison produced a given value, so CBR can pick its jump
     std::unordered_map<ir::ValueId, ir::Opcode> m_cmps;
+    const ir::Module* m_mod = nullptr;
 };
+
+std::string blast_print_name(const ir::Type& type);
+MachineFunction blast_print_int(const X86& x86, const ir::Type& type);
 
 // m_registers is indexed by Register::id(), so slot 0 is a placeholder standing
 // for 'no register'. It is never resized after construction: MachineOperand

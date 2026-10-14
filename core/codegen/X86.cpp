@@ -11,6 +11,7 @@
 namespace blast::core::codegen {
 
 void X86::lower(const ir::Module& mod) {
+    this->m_mod = &mod;
     // TODO: Link fi last block to fi+1 first block ?
     for (const ir::Function& fct : mod.fcts()) {
         // External functions have no body to lower, the runtime provides it
@@ -18,6 +19,12 @@ void X86::lower(const ir::Module& mod) {
             continue;
         }
         this->lowerFct(fct);
+    }
+    // Register 'print' builtins
+    for (ir::Type::Kind kind : { ir::Type::Kind::INT, ir::Type::Kind::UINT }) {
+        for (ir::Type::Width width : { ir::Type::Width::W1, ir::Type::Width::W8, ir::Type::Width::W16, ir::Type::Width::W32, ir::Type::Width::W64 }) {
+            this->m_fcts.push_back(blast_print_int(*this, { kind, width }));
+        }
     }
 }
 
@@ -81,17 +88,17 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::B
                             // Becomes %2 = 0 at then end of entry block (before terminator)
                             // Then block will also have those revoled then encountered later
                             ir::Instruction phiresolve(phi.result(), var, ir::NONE(), ir::Opcode::COPY);
-                            this->lowerInstruction(mfct, mblock, phiresolve);
+                            this->lowerInstruction(mfct, fct, mblock, phiresolve);
                         }
                     }
                 }
             }
         }
-        this->lowerInstruction(mfct, mblock, inst);
+        this->lowerInstruction(mfct, fct, mblock, inst);
     }
 }
 
-void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir::Instruction& inst) {
+void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, MachineBlock& mblock, const ir::Instruction& inst) {
     const MachineOperand dst = this->lowerOperand(mfct, inst.result());
     const MachineOperand lhs = this->lowerOperand(mfct, inst.lhs());
     const MachineOperand rhs = this->lowerOperand(mfct, inst.rhs());
@@ -179,6 +186,14 @@ void X86::lowerInstruction(MachineFunction& mfct, MachineBlock& mblock, const ir
                     0(%rbp)  saved rbp      <- rbp
         lower addr    -8(%rbp)  foo's own locals (if it has any)
         */
+        case ir::Opcode::CALL: {
+            std::printf("[86] Found a fct call\n");
+            const MachineOperand arg = this->lowerOperand(mfct, fct.callArgs(inst)[0]);
+            // Put the single argument for now in RDI because 'blast_print_i64' prints the content in RDI
+            mblock.addInstruction(MachineOpcode::MOV, PREG(&this->getReg("RDI"), arg.m_type), arg);
+            mblock.addInstruction(MachineOpcode::CALL, SYM(blast_print_name(arg.m_type), ir::PTR()), MNONE());
+            break;
+        }
         default:
             throw CodegenError("[X86] Unsupported opcode");
     }
@@ -195,6 +210,9 @@ MachineOperand X86::lowerOperand(MachineFunction& mfct, ir::Operand op) {
         case ir::Operand::Kind::BLOCK:
             // A jump target is just the label of the block it was lowered to.
             return SYM(mfct.getBlock(op.m_block).label(), op.m_type);
+        // An IR fct call becomes a SYM operanc
+        case ir::Operand::Kind::FUNCTION:
+            return SYM(this->m_mod->getFct(op.m_fct).name(), op.m_type);
         default:
             throw CodegenError("[X86] Unsupported operand kind");
     }
@@ -208,7 +226,7 @@ void X86::addRegister(Register r) {
     this->m_regnames[stored.label()] = stored.id();
 }
 
-ir::ValueId X86::getRegId(const std::string& name) {
+ir::ValueId X86::getRegId(const std::string& name) const {
     const auto it = this->m_regnames.find(name);
     if (it == this->m_regnames.end()) {
         throw CodegenError("[X86] Unknown register '" + name + "'");
@@ -216,8 +234,12 @@ ir::ValueId X86::getRegId(const std::string& name) {
     return it->second;
 }
 
-const Register& X86::getReg(const std::string& name) {
+const Register& X86::getReg(const std::string& name) const {
     return this->m_registers[this->getRegId(name)];
+}
+
+MachineOperand X86::getPREG(const std::string& name) const {
+    return PREG(&this->getReg(name));
 }
 
 const std::set<ir::ValueId>& X86::family(ir::ValueId id) const {
@@ -1030,8 +1052,8 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
             }
         }
 
-        const MachineOperand rbp = PREG(&x86.getReg("RBP"), ir::PTR());
-        const MachineOperand rsp = PREG(&x86.getReg("RSP"), ir::PTR());
+        const MachineOperand rbp = x86.getPREG("RBP");
+        const MachineOperand rsp = x86.getPREG("RSP");
         // Inject the 'save' frame (stack) instructions
         fct.prologue() = {
             { MachineOpcode::PUSH, MNONE(), rbp },
@@ -1086,12 +1108,12 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
 
         // Save all used callee-saved register into the stack and the END of the prologue
         for(auto it = callee_saved.begin(); it != callee_saved.end(); it++) {
-            fct.prologue().push_back({ MachineOpcode::PUSH, MNONE(), PREG(&x86.registers()[*it], ir::PTR()) });
+            fct.prologue().push_back({ MachineOpcode::PUSH, MNONE(), PREG(&x86.registers()[*it]) });
         }
 
         // Restore them to their respective registers in the epilogue BEFORE teardown
         for(auto it = callee_saved.begin(); it != callee_saved.end(); it++) {
-            fct.epilogue().push_front({ MachineOpcode::POP, PREG(&x86.registers()[*it], ir::PTR()), MNONE() });
+            fct.epilogue().push_front({ MachineOpcode::POP, PREG(&x86.registers()[*it]), MNONE() });
         }
 
     } else {

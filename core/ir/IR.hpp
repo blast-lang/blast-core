@@ -522,6 +522,13 @@ public:
             throw CodegenError("[Module] Unknown function id " + std::to_string(fid));
         return this->m_fcts[fid];
     };
+
+    const Function& getFct(FctId fid) const {
+        if (fid >= this->m_fcts.size()) {
+            throw CodegenError("[Module] Unknown function id " + std::to_string(fid));
+        }
+        return this->m_fcts[fid];
+    }
 };
 
 
