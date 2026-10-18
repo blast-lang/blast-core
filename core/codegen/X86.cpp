@@ -59,6 +59,45 @@ void X86::lowerFct(const ir::Function& fct) {
     }
 
     // Argument handling
+    MachineBlock& mentry = mfct.getBlock(entry.id());
+    size_t nb_int = 0, nb_float = 0;
+    std::int32_t nb_stack = 0;
+    std::array<const Register*, 6> int_regs = {
+        &this->getReg("RDI"),
+        &this->getReg("RSI"),
+        &this->getReg("RDX"),
+        &this->getReg("RCX"),
+        &this->getReg("R8"),
+        &this->getReg("R9")
+    };
+    std::array<const Register*, 8> float_regs = {
+        &this->getReg("XMM0"),
+        &this->getReg("XMM1"),
+        &this->getReg("XMM2"),
+        &this->getReg("XMM3"),
+        &this->getReg("XMM4"),
+        &this->getReg("XMM5"),
+        &this->getReg("XMM6"),
+        &this->getReg("XMM7")
+    };
+    const Register* rbp = &this->getReg("RBP");
+    for (const ir::Operand& a: fct.args()) {
+        const MachineOperand dst = VREG(a.m_value, a.m_type);
+        if (a.m_type.m_kind == ir::Type::Kind::FLOAT) {
+            if (nb_float < float_regs.size()) {
+                mentry.addInstruction(MachineOpcode::MOV, dst, PREG(float_regs[nb_float++], a.m_type));
+                continue;
+            }
+        } else if (nb_int < int_regs.size()) {
+            mentry.addInstruction(MachineOpcode::MOV, dst, PREG(int_regs[nb_int++], a.m_type));
+            continue;
+        }
+        // Saved RBP and the return address sit between RBP and the first stack argument:
+        // [rbp+0] is the saved rbp, pushed by the prologue.
+        // [rbp+8] is the return address, pushed by the call.
+        // [rbp+16] is the first stack argument, then [rbp+24] for the second ...
+        mentry.addInstruction(MachineOpcode::MOV, dst, MEM(rbp, 16 + 8 * nb_stack++, a.m_type));
+    }
 
     // Now, lower in postorder
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
@@ -926,6 +965,26 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         for (ir::ValueId y: out[i]) {
             for (ir::ValueId r: clobber[i]) {
                 domains.at(y).erase(r);
+            }
+        }
+    }
+
+    // Incoming physical registers (arguments) are not tracked as live, so a vreg
+    // copied out of one must not take any of them, or it could overwrite an
+    // argument that was not copied yet
+    // TODO: Track physical registers liveness to optimize this out
+    std::set<ir::ValueId> copied_from;
+    for (MachineInstruction* i: order) {
+        if (i->m_op == MachineOpcode::MOV && isVreg(i->m_dst) && isPreg(i->m_src)) {
+            for (ir::ValueId r: x86.family(i->m_src.m_preg->id())) {
+                copied_from.insert(r);
+            }
+        }
+    }
+    for (MachineInstruction* i: order) {
+        if (i->m_op == MachineOpcode::MOV && isVreg(i->m_dst) && isPreg(i->m_src)) {
+            for (ir::ValueId r: copied_from) {
+                domains.at(regId(i->m_dst)).erase(r);
             }
         }
     }
