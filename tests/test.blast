@@ -1,12 +1,10 @@
-a::Int = 5;
-b::Int = 1;
-c::Int = 0;
+a::Int = 1;
+b::Int = 1000;
 
-if (a == 1) {
-    b = 10;
-} else {
-    b = 100;
+
+while (a < b) {
+    a = a * 2;
 }
 
-c = a * b;
-print(c);
+
+print(a);

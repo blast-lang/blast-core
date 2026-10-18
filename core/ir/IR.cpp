@@ -112,7 +112,6 @@ Operand SSAIR::getLKO(context::Symbol* s, BlockId bid) {
 }
 
 
-
 Operand SSAIR::visitIntLiteral(const parser::IntLiteral& node) {
     return LITERAL(node.value());
 }

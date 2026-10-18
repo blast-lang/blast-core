@@ -290,7 +290,11 @@ enum class Opcode: std::uint8_t {
     CALL,
     // Memory: result = ALLOCA size, result = LOAD addr, STORE addr, value
     // result = ALLOCA size: reserves a slot in the current function's stack frame and hands a pointer to it
+    // Lower LOAD and STORE. LOAD becomes mov dst, [addr] and STORE becomes mov [addr], value.
     ALLOCA, LOAD, STORE,
+    // Equivalent of 'getelementptr' from llvm
+    // "Load value of addr"
+    LVOA,
     // Terminators: BR .. end
     BR, CBR, RET,
 };

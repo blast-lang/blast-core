@@ -2,6 +2,7 @@
 #include <core/Exception.hpp>
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <iostream>
 #include <iterator>
@@ -23,7 +24,7 @@ void X86::lower(const ir::Module& mod) {
     // Register 'print' builtins
     for (ir::Type::Kind kind : { ir::Type::Kind::INT, ir::Type::Kind::UINT }) {
         for (ir::Type::Width width : { ir::Type::Width::W1, ir::Type::Width::W8, ir::Type::Width::W16, ir::Type::Width::W32, ir::Type::Width::W64 }) {
-            this->m_fcts.push_back(blast_print_int(*this, { kind, width }));
+            //this->m_fcts.push_back(blast_print_int(*this, { kind, width }));
         }
     }
 }
@@ -187,11 +188,84 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
         lower addr    -8(%rbp)  foo's own locals (if it has any)
         */
         case ir::Opcode::CALL: {
+            // The SystemV ABI rules for function:
+            //  INT:
+            //  Arguments goes to RDI, RSI, RDX, RCX, R8, R9, then on the stack (right to left)
+            //  Result: in RAX (<= 64 bits) and RDX for 128 bits
+            // FLOAT:
+            //  Arguments goes to XMM0 to XMM7
+            //  Result in XMM0
+            // VARIADIC (printf):
+            //  set AL to the number of vector registers used
             std::printf("[86] Found a fct call\n");
-            const MachineOperand arg = this->lowerOperand(mfct, fct.callArgs(inst)[0]);
-            // Put the single argument for now in RDI because 'blast_print_i64' prints the content in RDI
-            mblock.addInstruction(MachineOpcode::MOV, PREG(&this->getReg("RDI"), arg.m_type), arg);
-            mblock.addInstruction(MachineOpcode::CALL, SYM(blast_print_name(arg.m_type), ir::PTR()), MNONE());
+            const std::vector<ir::Operand>& callargs = fct.callArgs(inst);
+            size_t nb_int = 0, nb_float = 0;
+            std::array<const Register*, 6> int_regs = {
+                &this->getReg("RDI"),
+                &this->getReg("RSI"),
+                &this->getReg("RDX"),
+                &this->getReg("RCX"),
+                &this->getReg("R8"),
+                &this->getReg("R9")
+            };
+            std::array<const Register*, 8> float_regs = {
+                &this->getReg("XMM0"),
+                &this->getReg("XMM1"),
+                &this->getReg("XMM2"),
+                &this->getReg("XMM3"),
+                &this->getReg("XMM4"),
+                &this->getReg("XMM5"),
+                &this->getReg("XMM6"),
+                &this->getReg("XMM7")
+            };
+            std::vector<const ir::Operand*> to_stack;
+            for (const ir::Operand& a: callargs) {
+                if (a.m_type.m_kind == ir::Type::Kind::INT || a.m_type.m_kind == ir::Type::Kind::UINT || a.m_type.m_kind == ir::Type::Kind::PTR) {
+                    if (nb_int < int_regs.size()) {
+                        // TODO: Handle different width
+                        mblock.addInstruction(MachineOpcode::MOV, PREG(int_regs[nb_int++], a.m_type), this->lowerOperand(mfct, a));
+                    } else {
+                        // Put to stack
+                        // TODO: Use multiple slots for args >= 64 bits
+                        to_stack.push_back(&a);
+                    }
+                }
+                if (a.m_type.m_kind == ir::Type::Kind::FLOAT) {
+                    if (nb_float < float_regs.size()) {
+                        // TODO: Handle different width
+                        mblock.addInstruction(MachineOpcode::MOV, PREG(float_regs[nb_float++], a.m_type), this->lowerOperand(mfct, a));
+                    } else {
+                        // Put to stack
+                        // TODO: Use multiple slots for args >= 64 bits
+                        to_stack.push_back(&a);
+                    }
+                }
+            }
+
+            // The stack MUST be 16 -bytes aligned before the CALL instruction
+            // so an odd number of 8 bytes slots needs 8 bytes of padding
+            const MachineOperand rsp = this->getPREG("RSP");
+            const std::int64_t padding = (to_stack.size() % 2 == 1) ? 8 : 0;
+            const std::int64_t stack_size = 8 * static_cast<std::int64_t>(to_stack.size()) + padding;
+
+            if (stack_size > 0) {
+                // Reserve space on the stack
+                mblock.addInstruction(MachineOpcode::SUB, rsp, LIT({ .m_i64 = stack_size }, ir::PTR()));
+
+                // Now, put the argument on the stack in reverse order
+                for (std::size_t i = 0; i < to_stack.size(); i++) {
+                    mblock.addInstruction(MachineOpcode::MOV, MEM(rsp.m_preg, 8 * static_cast<std::int32_t>(i), to_stack[i]->m_type), this->lowerOperand(mfct, *to_stack[i]));
+                }
+            }
+
+            // Make the call
+            mblock.addInstruction(MachineOpcode::CALL, SYM("TOTO", ir::PTR()), MNONE());
+
+            // TODO: Handle returns
+            if (stack_size > 0) {
+                // Reset the stack pointer after the CALL
+                mblock.addInstruction(MachineOpcode::ADD, rsp, LIT({ .m_i64 = stack_size }, ir::PTR()));
+            }
             break;
         }
         default:
@@ -724,6 +798,9 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
                     use[instr].insert(regId(instr->m_dst));
                 }
             }
+        }
+        if (instr->m_op == MachineOpcode::PUSH && isVreg(instr->m_src)) {
+            use[instr].insert(regId(instr->m_src));
         }
         if (isPreg(instr->m_dst)) {
             clobber[instr].insert(instr->m_dst.m_preg->id());
