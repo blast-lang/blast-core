@@ -298,7 +298,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
             }
 
             // Make the call
-            mblock.addInstruction(MachineOpcode::CALL, SYM("TOTO", ir::PTR()), MNONE());
+            mblock.addInstruction(MachineOpcode::CALL, this->lowerOperand(mfct, inst.lhs()), MNONE());
 
             // TODO: Handle returns
             if (stack_size > 0) {

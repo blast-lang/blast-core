@@ -26,11 +26,15 @@ public:
     R visitBinaryExpr(const BinaryExpr& n)             { return self().visitEmpty(); }
     R visitAssign(const Assign& n)                     { return self().visitEmpty(); }
     R visitCallExpr(const CallExpr& n)                 { return self().visitEmpty(); }
+    R visitMemberExpr(const MemberExpr& n)             { return self().visitEmpty(); }
     R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
+    R visitFctDecl(const FctDecl& n)                   { return self().visitEmpty(); }
+    R visitModuleDecl(const ModuleDecl& n)             { return self().visitEmpty(); }
     R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
     R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
     R visitWhileStmt(const WhileStmt& n)               { return self().visitEmpty(); }
     R visitContinueStmt(const ContinueStmt& n)         { return self().visitEmpty(); }
+    R visitReturnStmt(const ReturnStmt& n)             { return self().visitEmpty(); }
     R visitBlock(const Block& n)                       { return self().visitEmpty(); }
     R visitTranslationUnit(const TranslationUnit& n)   { return self().visitEmpty(); }
     // Non-concrete
@@ -69,9 +73,15 @@ public:
                 return self().visitAssign(as<Assign>(node));
             case Kind::CallExpr:
                 return self().visitCallExpr(as<CallExpr>(node));
+            case Kind::MemberExpr:
+                return self().visitMemberExpr(as<MemberExpr>(node));
             // Declarations
             case Kind::VarDecl:
                 return self().visitVarDecl(as<VarDecl>(node));
+            case Kind::FctDecl:
+                return self().visitFctDecl(as<FctDecl>(node));
+            case Kind::ModuleDecl:
+                return self().visitModuleDecl(as<ModuleDecl>(node));
             // Statements
             case Kind::ExprStmt:
                 return self().visitExprStmt(as<ExprStmt>(node));
@@ -81,6 +91,8 @@ public:
                 return self().visitWhileStmt(as<WhileStmt>(node));
             case Kind::ContinueStmt:
                 return self().visitContinueStmt(as<ContinueStmt>(node));
+            case Kind::ReturnStmt:
+                return self().visitReturnStmt(as<ReturnStmt>(node));
             case Kind::Block:
                 return self().visitBlock(as<Block>(node));
             // Root

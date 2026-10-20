@@ -167,10 +167,10 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     // The callee name was resolved by the ScopeResolver, its symbol carries the
     // function's id, which is also its FctId in the IR module
     context::Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
-    if (s == nullptr || s->function() == nullptr) {
+    if (s == nullptr || s->function() == nullptr || s->function()->methods().empty()) {
         throw CodegenError("[IR] Callee is not a function");
     }
-    const Operand callee = FUNCTION(s->function()->id);
+    const Operand callee = FUNCTION(s->function()->methods().front()->id);
 
     std::vector<Operand> args;
     args.reserve(node.args().size());
@@ -303,22 +303,21 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
 
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     // One IR function per function known to the context, in the same order,
-    // so an IR FctId is always equal to the context's FunctionId
-    for (const auto& fct: this->m_ctx->functions()) {
-        const bool external = fct->linkage == context::FunctionInfo::Linkage::External;
+    // so an IR FctId is always equal to the context's MethodId
+    for (const context::Method* fct: this->m_ctx->methods()) {
+        const bool external = fct->linkage == context::Method::Linkage::External;
 
-        // No symbol (blast_main): no signature to read, keep the defaults
-        if (fct->symbol == nullptr) {
+        // No type (blast_main): no signature to read, keep the defaults
+        if (fct->type == nullptr && fct->decl == nullptr) {
             this->m_main.addFct(fct->name, VOID(), external);
             continue;
         }
 
-        // Lower the signature the context deduced for this function
-        const context::Type* t = fct->symbol->type();
-        if (t == nullptr || t->kind() != context::Type::Kind::Function) {
+        // Lower the signature the context deduced for this method
+        const context::FunctionType* signature = fct->type;
+        if (signature == nullptr) {
             throw CodegenError("[IR] Function '" + fct->name + "' has no function type");
         }
-        const auto* signature = static_cast<const context::FunctionType*>(t);
         this->m_main.addFct(fct->name, fromContextType(signature->returns()), external);
         for (const context::Type* param: signature->args()->elements()) {
             this->m_main.fcts().back().addArg(fromContextType(param));

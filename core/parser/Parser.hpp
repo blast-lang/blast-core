@@ -97,8 +97,14 @@ protected:
     void parseUnaryExpr();
     // Folds the top operator with the top two operands. Reads no tokens.
     void parseBinaryExpr();
+    // Fct decl
+    void parserFctDecl();
     // Call
     void parseCallExpr();
+    // base.member
+    void parseMemberExpr();
+    // module Name { ... }
+    void parseModuleDecl();
     void parseLiteral();
     void parserIdentifier();
 

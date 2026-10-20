@@ -104,6 +104,7 @@ public:
         // Keywords
         UNDERSCORE,
         COMMA,
+        DOT,
         ENDEXPR,
         OPEN_PAR,
         CLOSE_PAR,
@@ -118,6 +119,8 @@ public:
         RETURN_STMT,
         WHILE_STMT,
         FOR_STMT,
+        FUNC_STMT,
+        MODULE_STMT,
         // Operators
         BIN_OP,
         ASSIGN,

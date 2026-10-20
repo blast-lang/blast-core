@@ -1,6 +1,7 @@
 #include "Parser.hpp"
 #include <core/Exception.hpp>
 
+#include <iostream>
 
 namespace blast::core::parser {
 
@@ -36,6 +37,23 @@ void SimpleParser::parseStmt() {
     } else if (this->currentToken().m_kind == TokenKind::WHILE_STMT) {
         this->parseWhileStmt();
         // Return here as we do not expect ';' after a while stmt
+        return;
+    } else if (this->currentToken().m_kind == TokenKind::RETURN_STMT) {
+        this->advance();
+        this->parseExpr();
+        this->push(std::make_unique<ReturnStmt>(this->popAs<Expr>()));
+        if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
+            throw ParseError("[Return] Expected ';' at the end of the statement", m_pos);
+        }
+        this->advance();
+        return;
+    } else if (this->currentToken().m_kind == TokenKind::FUNC_STMT) {
+        this->parserFctDecl();
+        // Return here as we do not expect ';' after a function body
+        return;
+    } else if (this->currentToken().m_kind == TokenKind::MODULE_STMT) {
+        this->parseModuleDecl();
+        // Return here as we do not expect ';' after a module body
         return;
     }
     else {
@@ -134,7 +152,11 @@ void SimpleParser::parseBlock() {
     this->advance();
     while(this->currentToken().m_kind != TokenKind::CLOSE_CURLBRAC) {
         this->parseStmt();
-        block->add(this->popAs<Stmt>());
+        if (this->peek()->kind() == ASTNode::Kind::ReturnStmt) {
+            block->setReturn(this->popAs<ReturnStmt>());
+        } else {
+            block->add(this->popAs<Stmt>());
+        }
     }
     // Consume closing bracket
     this->advance();
@@ -205,8 +227,13 @@ void SimpleParser::parseOperand() {
         throw ParseError("[Expr] Expected an operand", m_pos);
     }
 
-    while(this->currentToken().m_kind == TokenKind::OPEN_PAR) {
-        this->parseCallExpr();
+    while (this->currentToken().m_kind == TokenKind::OPEN_PAR ||
+           this->currentToken().m_kind == TokenKind::DOT) {
+        if (this->currentToken().m_kind == TokenKind::DOT) {
+            this->parseMemberExpr();
+        } else {
+            this->parseCallExpr();
+        }
     }
 }
 
@@ -236,6 +263,40 @@ void SimpleParser::parseBinaryExpr() {
 }
 
 
+void SimpleParser::parseModuleDecl() {
+    // skip 'module'
+    this->advance();
+    this->parserIdentifier();
+    auto name = this->popAs<Identifier>();
+    if (this->currentToken().m_kind != TokenKind::OPEN_CURLBRAC) {
+        throw ParseError("[Module] Expected '{' after the module name", m_pos);
+    }
+    this->advance();
+    std::vector<std::unique_ptr<Stmt>> stmts;
+    while (this->currentToken().m_kind != TokenKind::CLOSE_CURLBRAC) {
+        if (this->currentToken().m_kind == TokenKind::NONE) {
+            throw ParseError("[Module] No closing brace", m_pos);
+        }
+        this->parseStmt();
+        stmts.push_back(this->popAs<Stmt>());
+    }
+    this->advance();
+    this->push(std::make_unique<ModuleDecl>(name->name(), std::move(stmts)));
+}
+
+void SimpleParser::parseMemberExpr() {
+    auto base = this->popAs<Expr>();
+    // skip '.'
+    this->advance();
+    const Token& member = this->currentToken();
+    if (member.m_kind != TokenKind::IDENDIFIER && member.m_kind != TokenKind::BIN_OP) {
+        throw ParseError("[MemberExpr] Expected a name or an operator after '.'", m_pos);
+    }
+    std::string name = member.m_value;
+    this->advance();
+    this->push(std::make_unique<MemberExpr>(std::move(base), std::move(name)));
+}
+
 void SimpleParser::parseCallExpr() {
     auto callee = this->popAs<Expr>();
     // skip '('
@@ -259,6 +320,56 @@ void SimpleParser::parseCallExpr() {
     }
     this->advance();
     this->push(std::make_unique<CallExpr>(std::move(callee), std::move(args)));
+}
+
+void SimpleParser::parserFctDecl() {
+    this->advance();
+    this->parserIdentifier();
+    auto name = this->popAs<Identifier>();
+
+    if (this->currentToken().m_kind != TokenKind::OPEN_PAR) {
+        // TODO: Throw
+    }
+    this->advance();
+
+    std::vector<std::unique_ptr<VarDecl>> args;
+    while (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
+        this->parseVarDecl();
+        args.push_back(this->popAs<VarDecl>());
+        if (this->currentToken().m_kind == TokenKind::COMMA) {
+            this->advance();
+        } else {
+            // TODO: throw
+        }
+    }
+
+    // Ignore last comma, if any
+    if (this->currentToken().m_kind == TokenKind::COMMA) {
+        this->advance();
+    }
+
+    if (this->currentToken().m_kind == TokenKind::CLOSE_PAR) {
+        this->advance();
+    }
+
+    // Now, parse the "optional" type of the function
+    std::unique_ptr<Expr> retype = nullptr;
+    if (this->currentToken().m_kind == TokenKind::COLON_COLON) {
+        this->advance();
+        this->parserIdentifier();
+        retype = this->popAs<Identifier>();
+    }
+
+    // Now, parse the body
+    std::unique_ptr<Block> body = nullptr;
+    if (this->currentToken().m_kind == TokenKind::OPEN_CURLBRAC) {
+        this->parseBlock();
+        body = this->popAs<Block>();
+    } else {
+        // TODO: throw
+    }
+
+    this->push(std::make_unique<FctDecl>(name->name(), std::move(args), std::move(retype), std::move(body)));
 }
 
 

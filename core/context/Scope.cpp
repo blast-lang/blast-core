@@ -20,6 +20,11 @@ Symbol* Scope::declare(const std::string& name, Symbol::Kind kind, SymbolId id) 
     return new_symbl_ptr;
 }
 
+Symbol* Scope::lookupLocal(std::string_view name) const {
+    auto it = this->m_symbol_index.find(name);
+    return it == this->m_symbol_index.end() ? nullptr : it->second;
+}
+
 Symbol* Scope::lookup(std::string_view name) const {
     auto it = this->m_symbol_index.find(name);
     if (it != this->m_symbol_index.end()) {

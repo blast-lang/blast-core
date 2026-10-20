@@ -36,8 +36,11 @@ public:
         BinaryExpr,
         Assign,
         CallExpr,
+        MemberExpr,
         // --- Declarations (an expression, as in Julia; keep last in the expr range) ---
         VarDecl,
+        FctDecl,
+        ModuleDecl,
         // --- Statements ---
         ExprStmt,
         IfStmt,
@@ -192,14 +195,27 @@ private:
     std::unique_ptr<Expr> m_rhs;
 };
 
+class ReturnStmt: public Stmt {
+public:
+    ReturnStmt(std::unique_ptr<Expr> ret): Stmt(Kind::ReturnStmt), m_ret(std::move(ret)) {}
+    const Expr* expr() const { return m_ret.get(); }
+private:
+    std::unique_ptr<Expr> m_ret;
+};
+
 class Block: public Stmt {
 public:
     Block() : Stmt(Kind::Block) {}
     void add(std::unique_ptr<Stmt> stmt) { m_stmts.push_back(std::move(stmt)); }
     const std::vector<std::unique_ptr<Stmt>>& stmts() const { return m_stmts; }
 
+    void setReturn(std::unique_ptr<ReturnStmt> ret) { m_return = std::move(ret); }
+    bool hasReturn() const { return m_return != nullptr; }
+    const ReturnStmt* returnStmt() const { return m_return.get(); }   // null unless hasReturn()
+
 private:
     std::vector<std::unique_ptr<Stmt>> m_stmts;
+    std::unique_ptr<ReturnStmt> m_return;
 };
 
 
@@ -257,18 +273,9 @@ public:
 // ForStmt: pre, loop and post
 
 
-
-
 class ContinueStmt: public Stmt {
 public:
     ContinueStmt(): Stmt(Kind::ContinueStmt) {}
-};
-
-class ReturnStmt: public Stmt {
-public:
-    ReturnStmt(std::unique_ptr<Expr> ret): Stmt(Kind::ReturnStmt), m_ret(std::move(ret)) {}
-private:
-    std::unique_ptr<Expr> m_ret;
 };
 
 // ---------------------------------------------------------------------------
@@ -310,9 +317,43 @@ private:
 
 // Like in Julia, Function declaration are expression that evaluates to the function object
 class FctDecl: public Decl {
+public:
+    FctDecl(std::string name,
+            std::vector<std::unique_ptr<VarDecl>> params,
+            std::unique_ptr<Expr> returnType,
+            std::unique_ptr<Block> body
+        ):
+        Decl(Kind::FctDecl), m_name(std::move(name)), m_params(std::move(params)),
+        m_returnType(std::move(returnType)), m_body(std::move(body)) {}
+
+    const std::string& name() const override { return m_name; }
+
+    const std::vector<std::unique_ptr<VarDecl>>& params() const { return m_params; }
+
+    bool hasReturnType() const { return m_returnType != nullptr; }
+    const Expr* returnType() const { return m_returnType.get(); }   // null unless hasReturnType()
+
+    const Block* body() const { return m_body.get(); }
 
 private:
+    std::string m_name;
+    std::vector<std::unique_ptr<VarDecl>> m_params;
+    std::unique_ptr<Expr> m_returnType;
     std::unique_ptr<Block> m_body;
+};
+
+// Module Name { stmts }
+class ModuleDecl: public Decl {
+public:
+    ModuleDecl(std::string name, std::vector<std::unique_ptr<Stmt>> stmts):
+        Decl(Kind::ModuleDecl), m_name(std::move(name)), m_stmts(std::move(stmts)) {}
+
+    const std::string& name() const override { return m_name; }
+    const std::vector<std::unique_ptr<Stmt>>& stmts() const { return m_stmts; }
+
+private:
+    std::string m_name;
+    std::vector<std::unique_ptr<Stmt>> m_stmts;
 };
 
 // ---------------------------------------------------------------------------
@@ -332,6 +373,22 @@ public:
 private:
     std::unique_ptr<Expr> m_callee;
     std::vector<std::unique_ptr<Expr>> m_args;
+};
+
+// base.member, where member is an identifier or an operator such as '+'
+class MemberExpr: public Expr {
+public:
+    MemberExpr(std::unique_ptr<Expr> base, std::string member):
+        Expr(Kind::MemberExpr),
+        m_base(std::move(base)),
+        m_member(std::move(member))
+    {}
+    const Expr* base() const { return m_base.get(); }
+    const std::string& member() const { return m_member; }
+
+private:
+    std::unique_ptr<Expr> m_base;
+    std::string m_member;
 };
 
 // ---------------------------------------------------------------------------

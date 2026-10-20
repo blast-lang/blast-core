@@ -30,14 +30,24 @@ ASTContext::ASTContext():
         // Builtin Functions
         //---------------------------
         // The unit's top-level code, always function 0
-        this->registerFunction("blast_main", FunctionInfo::Linkage::Internal, nullptr);
+        GenericFunction* MAIN_G = this->registerGeneric("blast_main", nullptr);
+        this->registerMethod(MAIN_G, Method::Linkage::Internal, nullptr, nullptr);
 
         auto PRINT_ARGS_T = this->getTuple({INT_T});
         auto PRINT_T = this->getFunction(PRINT_ARGS_T, NOTHING_T);
         auto PRINT_S = this->declare(this->m_core, "print", Symbol::Kind::Function);
         PRINT_S->setType(PRINT_T);
-        this->registerFunction("print", FunctionInfo::Linkage::External, PRINT_S);
+        GenericFunction* PRINT_G = this->registerGeneric("print", PRINT_S);
+        this->registerMethod(PRINT_G, Method::Linkage::External, PRINT_T, nullptr);
 
+
+        //---------------------------
+        // Builtin Modules
+        //---------------------------
+        auto CORE_S = this->declare(this->m_core, "Core", Symbol::Kind::Module);
+        CORE_S->setModuleScope(&this->m_core);
+        auto MAIN_S = this->declare(this->m_core, "Main", Symbol::Kind::Module);
+        MAIN_S->setModuleScope(&this->m_main);
 
         // Make 'main' (the unit to be analysed) import all Core symbols by default
         this->m_main.setParent(&this->m_core);

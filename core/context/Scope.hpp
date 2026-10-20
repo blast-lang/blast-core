@@ -10,14 +10,15 @@
 
 namespace blast::core::parser {
 class Decl;
+class FctDecl;
 }
 
 namespace blast::core::context {
 class Scope;
-struct FunctionInfo;
+class GenericFunction;
 
-// Index of a function in the context's function list, in declaration order
-using FunctionId = std::uint32_t;
+// Index of a method in the context's method list, in declaration order
+using MethodId = std::uint32_t;
 
 // Identity of a binding within its function frame. The id of a symbol the
 // resolver has not placed in a frame yet.
@@ -55,7 +56,7 @@ public:
     Symbol(const Symbol&) = delete;
     Symbol& operator=(const Symbol&) = delete;
     Symbol(Kind kind, SymbolId id, std::string name, Scope* parent = nullptr): 
-        m_kind(kind), m_id(id), m_name(std::move(name)), m_parent_scope(parent), m_type(nullptr), m_function(nullptr)
+        m_kind(kind), m_id(id), m_name(std::move(name)), m_parent_scope(parent), m_type(nullptr), m_function(nullptr), m_module_scope(nullptr)
     {}
 
     Kind kind() const { return this->m_kind; }
@@ -66,8 +67,12 @@ public:
     void setType(Type* type) { this->m_type = type; }
 
     // Set only for Kind::Function symbols
-    FunctionInfo* function() { return this->m_function; }
-    void setFunction(FunctionInfo* function) { this->m_function = function; }
+    GenericFunction* function() { return this->m_function; }
+    void setFunction(GenericFunction* function) { this->m_function = function; }
+
+    // Set only for Kind::Module symbols: the scope the module's names live in
+    Scope* moduleScope() { return this->m_module_scope; }
+    void setModuleScope(Scope* scope) { this->m_module_scope = scope; }
 
 private:
     // Type of Symbol
@@ -80,23 +85,44 @@ private:
     Scope* m_parent_scope;
     // Deduced type of Symbol, deduced from static analysis
     Type* m_type;
-    // Function record, for function symbols
-    FunctionInfo* m_function;
+    // Method set, for function symbols
+    GenericFunction* m_function;
+    // Scope of the module, for module symbols
+    Scope* m_module_scope;
 };
 
-// A function of the program, known before IR lowering
-struct FunctionInfo {
-    // Where the function's body comes from
+// One signature and one body of a generic function, known before IR lowering
+struct Method {
+    // Where the method's body comes from
     enum class Linkage {
         Internal,   // written in this program, lowered to IR
         External,   // lives outside (runtime), only declared in IR
     };
 
-    FunctionId id;
+    MethodId id;
     std::string name;
     Linkage linkage;
-    // Null for functions with no source name, like blast_main
-    Symbol* symbol;
+    // Null until the signature is resolved, and for blast_main
+    const FunctionType* type;
+    // Null for builtins and blast_main
+    const parser::FctDecl* decl;
+};
+
+// A function name and every method it dispatches to
+class GenericFunction {
+public:
+    GenericFunction(std::string name): m_name(std::move(name)), m_methods() {}
+
+    const std::string& name() const { return this->m_name; }
+    const std::vector<std::unique_ptr<Method>>& methods() const { return this->m_methods; }
+    Method* addMethod(Method method) {
+        this->m_methods.push_back(std::make_unique<Method>(std::move(method)));
+        return this->m_methods.back().get();
+    }
+
+private:
+    std::string m_name;
+    std::vector<std::unique_ptr<Method>> m_methods;
 };
 
 
@@ -120,6 +146,8 @@ public:
     Symbol* declare(const std::string& name, Symbol::Kind kind, SymbolId id);
     // Find a symbol in this scope, or parent scopes
     Symbol* lookup(std::string_view name) const;
+    // Find a symbol in this scope only, for qualified names like A.f
+    Symbol* lookupLocal(std::string_view name) const;
 
     Kind kind() const { return this->m_kind; }
     ScopeId id() const { return this->m_id; }

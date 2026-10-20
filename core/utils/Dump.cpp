@@ -47,6 +47,9 @@ public:
         }
         return out + ")";
     }
+    std::string visitMemberExpr(const MemberExpr& n) {
+        return "(member " + visit(n.base()) + " " + n.member() + ")";
+    }
     std::string visitExprStmt(const ExprStmt& n) {
         return "(expr-stmt " + visit(n.expr()) + ")";
     }
@@ -73,8 +76,29 @@ public:
         }
         return out + ")";
     }
+    std::string visitReturnStmt(const ReturnStmt& n) {
+        return "(return " + visit(n.expr()) + ")";
+    }
+    std::string visitFctDecl(const FctDecl& n) {
+        std::string out = "(fct-decl " + n.name() + " (params";
+        for (const auto& param : n.params()) {
+            out += " " + visit(param.get());
+        }
+        out += ")";
+        if (n.hasReturnType()) {
+            out += " :: " + visit(n.returnType());
+        }
+        return out + " " + visit(n.body()) + ")";
+    }
+    std::string visitModuleDecl(const ModuleDecl& n) {
+        return join("(module " + n.name(), n.stmts());
+    }
     std::string visitBlock(const Block& n) {
-        return join("(block", n.stmts());
+        std::string out = join("(block", n.stmts());
+        if (n.hasReturn()) {
+            out.insert(out.size() - 1, " " + visit(n.returnStmt()));
+        }
+        return out;
     }
     std::string visitTranslationUnit(const TranslationUnit& n) {
         return join("(unit", n.stmts());
@@ -121,10 +145,14 @@ public:
     }
     std::string visitAssign(const Assign&)                 { return "Assign"; }
     std::string visitCallExpr(const CallExpr&)             { return "CallExpr"; }
+    std::string visitMemberExpr(const MemberExpr& n)       { return "MemberExpr '" + n.member() + "'"; }
     std::string visitExprStmt(const ExprStmt&)             { return "ExprStmt"; }
     std::string visitIfStmt(const IfStmt&)                 { return "IfStmt"; }
     std::string visitWhileStmt(const WhileStmt&)           { return "WhileStmt"; }
     std::string visitContinueStmt(const ContinueStmt&)     { return "ContinueStmt"; }
+    std::string visitReturnStmt(const ReturnStmt&)         { return "ReturnStmt"; }
+    std::string visitFctDecl(const FctDecl& n)             { return "FctDecl '" + n.name() + "'"; }
+    std::string visitModuleDecl(const ModuleDecl& n)       { return "ModuleDecl '" + n.name() + "'"; }
     std::string visitBlock(const Block&)                   { return "Block"; }
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
     std::string visitTranslationUnit(const TranslationUnit&) { return "TranslationUnit"; }
@@ -156,6 +184,9 @@ public:
         }
         return children;
     }
+    std::vector<Child> visitMemberExpr(const MemberExpr& n) {
+        return {{"base: ", n.base()}};
+    }
     std::vector<Child> visitExprStmt(const ExprStmt& n) {
         return {{"", n.expr()}};
     }
@@ -179,8 +210,29 @@ public:
         }
         return children;
     }
-    std::vector<Child> visitBlock(const Block& n) {
+    std::vector<Child> visitReturnStmt(const ReturnStmt& n) {
+        return {{"", n.expr()}};
+    }
+    std::vector<Child> visitFctDecl(const FctDecl& n) {
+        std::vector<Child> children;
+        for (const auto& param : n.params()) {
+            children.push_back({"param: ", param.get()});
+        }
+        if (n.hasReturnType()) {
+            children.push_back({"ret: ", n.returnType()});
+        }
+        children.push_back({"body: ", n.body()});
+        return children;
+    }
+    std::vector<Child> visitModuleDecl(const ModuleDecl& n) {
         return sequence(n.stmts());
+    }
+    std::vector<Child> visitBlock(const Block& n) {
+        std::vector<Child> children = sequence(n.stmts());
+        if (n.hasReturn()) {
+            children.push_back({"", n.returnStmt()});
+        }
+        return children;
     }
     std::vector<Child> visitTranslationUnit(const TranslationUnit& n) {
         return sequence(n.stmts());

@@ -25,6 +25,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     // Keywords
     Tokenizer::SA underscore         = SA('_');
     Tokenizer::SA comma              = SA(',');
+    Tokenizer::SA dot                = SA('.');
     Tokenizer::SA endexpr            = SA(';');
     Tokenizer::SA open_par           = SA('(');
     Tokenizer::SA close_par          = SA(')');
@@ -39,6 +40,8 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA else_stmt          = SA(std::string_view{"else"});
     Tokenizer::SA while_stmt         = SA(std::string_view{"while"});
     Tokenizer::SA for_stmt           = SA(std::string_view{"for"});
+    Tokenizer::SA func_stmt          = SA(std::string_view{"func"});
+    Tokenizer::SA module_stmt        = SA(std::string_view{"module"});
     // Operators
     Tokenizer::SA op_add             = SA('+');
     Tokenizer::SA op_mul             = SA('*');
@@ -65,6 +68,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     // Keywords
     this->m_rules.push_back({underscore,        0,      Tokenizer::TokenKind::UNDERSCORE});
     this->m_rules.push_back({comma,             0,      Tokenizer::TokenKind::COMMA});
+    this->m_rules.push_back({dot,               0,      Tokenizer::TokenKind::DOT});
     this->m_rules.push_back({endexpr,           0,      Tokenizer::TokenKind::ENDEXPR});
     this->m_rules.push_back({open_par,          0,      Tokenizer::TokenKind::OPEN_PAR});
     this->m_rules.push_back({close_par,         0,      Tokenizer::TokenKind::CLOSE_PAR});
@@ -80,6 +84,8 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     this->m_rules.push_back({else_stmt,         0,      Tokenizer::TokenKind::ELSE_STMT});
     this->m_rules.push_back({while_stmt,        0,      Tokenizer::TokenKind::WHILE_STMT});
     this->m_rules.push_back({for_stmt,          0,      Tokenizer::TokenKind::FOR_STMT});
+    this->m_rules.push_back({func_stmt,         0,      Tokenizer::TokenKind::FUNC_STMT});
+    this->m_rules.push_back({module_stmt,       0,      Tokenizer::TokenKind::MODULE_STMT});
     // Operators
     this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
@@ -115,6 +121,7 @@ std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
         case Tokenizer::TokenKind::STR_LIT: return "STR_LIT";
         case Tokenizer::TokenKind::UNDERSCORE: return "UNDERSCORE";
         case Tokenizer::TokenKind::COMMA: return "COMMA";
+        case Tokenizer::TokenKind::DOT: return "DOT";
         case Tokenizer::TokenKind::ENDEXPR: return "ENDEXPR";
         case Tokenizer::TokenKind::OPEN_PAR: return "OPEN_PAR";
         case Tokenizer::TokenKind::CLOSE_PAR: return "CLOSE_PAR";
@@ -126,6 +133,8 @@ std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
         case Tokenizer::TokenKind::ELSE_STMT: return "ELSE_STMT";
         case Tokenizer::TokenKind::WHILE_STMT: return "WHILE_STMT";
         case Tokenizer::TokenKind::FOR_STMT: return "FOR_STMT";
+        case Tokenizer::TokenKind::FUNC_STMT: return "FUNC_STMT";
+        case Tokenizer::TokenKind::MODULE_STMT: return "MODULE_STMT";
         case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE_STMT";
         case Tokenizer::TokenKind::RETURN_STMT: return "RETURN_STMT";
         case Tokenizer::TokenKind::BREAK_STMT: return "BREAK_STMT";
