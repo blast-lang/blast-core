@@ -1,0 +1,24 @@
+{
+  "name": "blast-language",
+  "displayName": "Blast",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "blast",
+        "aliases": ["Blast", "blast"],
+        "extensions": [".blast"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "blast",
+        "scopeName": "source.blast",
+        "path": "./syntaxes/blast.tmLanguage.json"
+      }
+    ]
+  }
+}
