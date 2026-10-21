@@ -642,6 +642,9 @@ std::string dump(const ir::Module& m) {
         if (fn.isExternal()) {
             continue;
         }
+        if (!out.empty()) {
+            out += "\n";
+        }
         out += functionText(fn, &m);
     }
     return out;

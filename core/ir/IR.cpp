@@ -185,6 +185,58 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     return this->currentFct().addCall(this->currentBlock().id(), callee, args, ret);
 }
 
+Operand SSAIR::visitMemberExpr(const parser::MemberExpr&) {
+    throw CodegenError("member expressions are not lowered yet");
+}
+
+Operand SSAIR::visitReturnStmt(const parser::ReturnStmt& node) {
+    // A bare return yields 0, like the fall-through return
+    const Operand value = node.expr() != nullptr ? this->visit(node.expr()) : LITERAL(std::int64_t{0});
+    this->addInstruction(value, NONE(), Opcode::RET);
+    return value;
+}
+
+Operand SSAIR::visitFctDecl(const parser::FctDecl& node) {
+    // The method registered by the ScopeResolver, its id is the IR FctId
+    const context::Method* method = this->m_ctx->getNodeMethod(&node);
+    if (method == nullptr) {
+        throw CodegenError("[IR] Function '" + node.name() + "' has no method");
+    }
+
+    // Save the enclosing position, to restore once the body is lowered
+    const FctId saved_fct = this->m_current_fct;
+    const BlockId saved_block = this->m_current_block;
+    this->m_current_fct = method->id;
+
+    // The entry block is created with the function, it has no predecessors
+    this->m_current_block = 0;
+    this->sealBlock(this->currentFct().getBlock(this->m_current_block));
+
+    // Bind each parameter to its argument, so reads in the body find it
+    const std::vector<Operand>& args = this->currentFct().args();
+    for (std::size_t i = 0; i < node.params().size(); ++i) {
+        context::Symbol* p = this->m_ctx->getNodeSymbol(node.params()[i].get());
+        this->setLKO(p, this->m_current_block, args[i]);
+    }
+
+    this->visit(node.body());
+
+    // Add "return 0" if not return found already
+    const BasicBlock& last = this->currentBlock();
+    if (last.instrs().empty() || !isTerminator(last.instrs().back().op())) {
+        this->addInstruction(LITERAL(std::int64_t{0}), NONE(), Opcode::RET);
+    }
+
+    // Back to the enclosing function, a declaration produces no value
+    this->m_current_fct = saved_fct;
+    this->m_current_block = saved_block;
+    return NONE();
+}
+
+Operand SSAIR::visitModuleDecl(const parser::ModuleDecl&) {
+    throw CodegenError("module declarations are not lowered yet");
+}
+
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
     return this->visit(node.expr());
 }
@@ -289,6 +341,10 @@ Operand SSAIR::visitBlock(const parser::Block& node) {
     for(const auto& stmt: node.stmts()) {
         last = this->visit(stmt.get());
     }
+    // The return is stored apart from the statements
+    if (node.hasReturn()) {
+        last = this->visit(node.returnStmt());
+    }
     return last;
 }
 
@@ -305,11 +361,9 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     // One IR function per function known to the context, in the same order,
     // so an IR FctId is always equal to the context's MethodId
     for (const context::Method* fct: this->m_ctx->methods()) {
-        const bool external = fct->linkage == context::Method::Linkage::External;
-
         // No type (blast_main): no signature to read, keep the defaults
         if (fct->type == nullptr && fct->decl == nullptr) {
-            this->m_main.addFct(fct->name, VOID(), external);
+            this->m_main.addFct(fct->name, VOID(), fct->isExternal());
             continue;
         }
 
@@ -318,7 +372,7 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
         if (signature == nullptr) {
             throw CodegenError("[IR] Function '" + fct->name + "' has no function type");
         }
-        this->m_main.addFct(fct->name, fromContextType(signature->returns()), external);
+        this->m_main.addFct(fct->name, fromContextType(signature->returns()), fct->isExternal());
         for (const context::Type* param: signature->args()->elements()) {
             this->m_main.fcts().back().addArg(fromContextType(param));
         }

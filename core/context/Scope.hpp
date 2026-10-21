@@ -106,6 +106,8 @@ struct Method {
     const FunctionType* type;
     // Null for builtins and blast_main
     const parser::FctDecl* decl;
+
+    bool isExternal() const { return this->linkage == Linkage::External; }
 };
 
 // A function name and every method it dispatches to
