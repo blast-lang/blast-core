@@ -432,6 +432,9 @@ std::string machineOperandText(const codegen::MachineOperand& op) {
 
 std::string machineInstructionText(const codegen::MachineInstruction& instr) {
     std::string text = machineOpcodeName(instr.m_op);
+    if (instr.m_op == codegen::MachineOpcode::RET) {
+        return text;
+    }
     bool has_operand = false;
     if (instr.m_dst.m_kind != codegen::MachineOperand::Kind::NONE) {
         text += " " + machineOperandText(instr.m_dst);
@@ -571,6 +574,9 @@ std::string attInstructionText(const codegen::MachineInstruction& instr) {
 
 std::string intelInstructionText(const codegen::MachineInstruction& instr) {
     std::string text = mnemonic(instr.m_op);
+    if (instr.m_op == codegen::MachineOpcode::RET) {
+        return text;
+    }
     bool has_operand = false;
     if (instr.m_dst.m_kind != codegen::MachineOperand::Kind::NONE) {
         text += " " + intelOperandText(instr.m_dst);
@@ -578,6 +584,9 @@ std::string intelInstructionText(const codegen::MachineInstruction& instr) {
     }
     if (instr.m_src.m_kind != codegen::MachineOperand::Kind::NONE) {
         text += (has_operand ? ", " : " ") + intelOperandText(instr.m_src);
+    }
+    if (instr.m_op == codegen::MachineOpcode::CALL && instr.m_dst.m_kind == codegen::MachineOperand::Kind::SYM) {
+        text += "@PLT";
     }
     return text;
 }
@@ -683,24 +692,29 @@ std::string dump(const codegen::X86& x86) {
     return out;
 }
 
-std::string emit(const codegen::X86& x86) {
+std::string emit(const codegen::X86& x86, bool with_main) {
     std::string out =
         "    .section .note.GNU-stack,\"\",@progbits\n"
         "\n"
         "    .intel_syntax noprefix\n"
-        "    .text\n"
-        "    .globl main\n"
-        // The C runtime's CALL leaves RSP 8 bytes off a 16-byte boundary, so realign
-        // before calling blast_main or it starts misaligned too
-        "main:\n"
-        "    sub rsp, 8\n"
-        "    call blast_main\n"
-        "    add rsp, 8\n"
-        "    xor eax, eax\n"
-        "    ret\n";
+        "    .text\n";
+    if (with_main) {
+        out +=
+            "    .globl main\n"
+            // The C runtime's CALL leaves RSP 8 bytes off a 16-byte boundary, so realign
+            // before calling blast_main or it starts misaligned too
+            "main:\n"
+            "    sub rsp, 8\n"
+            "    call blast_main\n"
+            "    add rsp, 8\n"
+            "    xor eax, eax\n"
+            "    ret\n";
+    }
 
     for (const codegen::MachineFunction& mfn : x86.fcts()) {
-        out += "\n" + mfn.name() + ":\n";
+        out += "\n    .globl " + mfn.name() + "\n";
+        out += "    .type " + mfn.name() + ", @function\n";
+        out += mfn.name() + ":\n";
         for (const codegen::MachineInstruction& instr : mfn.prologue()) {
             out += "    " + intelInstructionText(instr) + "\n";
         }

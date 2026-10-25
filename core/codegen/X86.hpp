@@ -284,6 +284,7 @@ public:
     const std::vector<MachineFunction>& fcts() const { return this->m_fcts; }
 
     void lower(const ir::Module& mod);
+    void lowerBuiltins();
 
     const std::vector<Register>& registers() const { return this->m_registers; }
     ir::ValueId getRegId(const std::string& name) const;

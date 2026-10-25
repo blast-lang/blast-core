@@ -33,6 +33,6 @@ std::string dump(const codegen::X86& x86);
 
 // The whole translation unit as gas-ready AT&T assembly: "movq $5, %rax".
 // Every operand must be a physical register by then.
-std::string emit(const codegen::X86& x86);
+std::string emit(const codegen::X86& x86, bool with_main = true);
 
 } // namespace blast::core::utils

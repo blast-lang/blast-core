@@ -11,11 +11,33 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#include <unistd.h>
 
 using namespace blast::core::lexer;
 using namespace blast::core::context;
-                                     
-    
+
+static bool buildRuntime() {
+    blast::core::codegen::X86 rt;
+    rt.lowerBuiltins();
+    blast::core::codegen::RegisterAllocator regalloc(rt);
+
+    std::ofstream rt_file("blastrt.s");
+    if (!rt_file) {
+        std::fprintf(stderr, "blastc: cannot write 'blastrt.s'\n");
+        return false;
+    }
+    rt_file << blast::core::utils::emit(rt, false);
+    rt_file.close();
+
+    const std::string cmd = "cc -shared blastrt.s -o libblastrt.so";
+    std::printf("blastc: $ %s\n", cmd.c_str());
+    std::fflush(stdout);
+    if (std::system(cmd.c_str()) != 0) {
+        std::fprintf(stderr, "blastc: building the runtime failed\n");
+        return false;
+    }
+    return true;
+}
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -97,7 +119,16 @@ int main(int argc, char* argv[]) {
         asm_file.close();
 
         // cc drives as and ld, and brings in the crt startup files and libc
-        const std::string cmd = "cc -no-pie " + asm_path + " -o " + stem;
+        if (!buildRuntime()) {
+            return 1;
+        }
+
+        char cwd[4096];
+        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
+            std::fprintf(stderr, "blastc: cannot get the current directory\n");
+            return 1;
+        }
+        const std::string cmd = "cc -no-pie " + asm_path + " -L. -lblastrt -Wl,-rpath," + cwd + " -o " + stem;
         std::printf("blastc: $ %s\n", cmd.c_str());
         std::fflush(stdout);
         if (std::system(cmd.c_str()) != 0) {

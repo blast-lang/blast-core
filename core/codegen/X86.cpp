@@ -21,10 +21,12 @@ void X86::lower(const ir::Module& mod) {
         }
         this->lowerFct(fct);
     }
-    // Register 'print' builtins
+}
+
+void X86::lowerBuiltins() {
     for (ir::Type::Kind kind : { ir::Type::Kind::INT, ir::Type::Kind::UINT }) {
         for (ir::Type::Width width : { ir::Type::Width::W1, ir::Type::Width::W8, ir::Type::Width::W16, ir::Type::Width::W32, ir::Type::Width::W64 }) {
-            //this->m_fcts.push_back(blast_print_int(*this, { kind, width }));
+            this->m_fcts.push_back(blast_print_int(*this, { kind, width }));
         }
     }
 }
@@ -202,6 +204,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
         case ir::Opcode::RET:
             // The returned value sits in m_src so liveness reads it as a use:
             // as a destination it would look like a write and kill the value.
+            mblock.addInstruction(MachineOpcode::MOV, PREG(&this->getReg("RAX"), inst.lhs().m_type), lhs);
             mblock.addInstruction(MachineOpcode::RET, MNONE(), lhs);
             break;
         // Unconditionnal jump
@@ -298,7 +301,11 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
             }
 
             // Make the call
-            mblock.addInstruction(MachineOpcode::CALL, this->lowerOperand(mfct, inst.lhs()), MNONE());
+            MachineOperand callee = this->lowerOperand(mfct, inst.lhs());
+            if (inst.lhs().m_kind == ir::Operand::Kind::FUNCTION && this->m_mod->getFct(inst.lhs().m_fct).isExternal() && callee.m_sym == "print" && !callargs.empty()) {
+                callee = SYM(blast_print_name(callargs[0].m_type), callee.m_type);
+            }
+            mblock.addInstruction(MachineOpcode::CALL, callee, MNONE());
 
             // TODO: Handle returns
             if (stack_size > 0) {
