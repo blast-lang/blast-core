@@ -307,7 +307,11 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
             }
             mblock.addInstruction(MachineOpcode::CALL, callee, MNONE());
 
-            // TODO: Handle returns
+            // Put return value (RAX) into 'dst'
+            if (inst.result().m_kind != ir::Operand::Kind::NONE) {
+                mblock.addInstruction(MachineOpcode::MOV, dst, this->getPREG("RAX"));
+            }
+
             if (stack_size > 0) {
                 // Reset the stack pointer after the CALL
                 mblock.addInstruction(MachineOpcode::ADD, rsp, LIT({ .m_i64 = stack_size }, ir::PTR()));
