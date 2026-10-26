@@ -1,5 +1,5 @@
 #include <core/context/Resolver.hpp>
-#include <core/Exception.hpp>
+#include <core/context/Exception.hpp>
 #include <cstdio>
 
 namespace blast::core::context {
@@ -25,6 +25,7 @@ void ScopeResolver::visitVarDecl(const parser::VarDecl& node) {
     // First let's see if we are declaring a unique symbol
     if (this->m_current_scope->hasSymbol(node.name())) {
         // Throw 'Variable already declared in this scope'
+        throw Redeclaration(node.name(), node.id());
     }
 
     // Let's declare this new symbol in the scope
@@ -45,7 +46,7 @@ void ScopeResolver::visitIdentifier(const parser::Identifier& node) {
     Symbol* s = this->m_current_scope->lookup(node.name());
     if (s == nullptr) {
         // Throw: Identifier not declared in this scope
-        std::printf("[AF] Unknown Identifier %s\n", node.name().c_str());
+        throw UndeclaredIdentifier(node.name(), node.id());
     } else {
         this->m_ctx->setNodeSymbol(&node, s);
         std::printf("[AF] Visited identifier %s\n", node.name().c_str());
@@ -81,12 +82,11 @@ void ScopeResolver::visitMemberExpr(const parser::MemberExpr& node) {
         return;
     }
     if (base->kind() != Symbol::Kind::Module) {
-        std::printf("[AF] '%.*s' is not a module\n", int(base->name().size()), base->name().data());
-        return;
+        throw NotAModule(base, node.id());
     }
     Symbol* member = base->moduleScope()->lookupLocal(node.member());
     if (member == nullptr) {
-        std::printf("[AF] Unknown member %s of module %.*s\n", node.member().c_str(), int(base->name().size()), base->name().data());
+        throw UnknownMember(node.member(), base, node.id());
     } else {
         this->m_ctx->setNodeSymbol(&node, member);
     }
@@ -95,8 +95,7 @@ void ScopeResolver::visitMemberExpr(const parser::MemberExpr& node) {
 void ScopeResolver::visitModuleDecl(const parser::ModuleDecl& node) {
     Symbol* module = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Module);
     if (module == nullptr) {
-        std::printf("[AF] Module %s already declared in this scope\n", node.name().c_str());
-        return;
+        throw Redeclaration(node.name(), node.id());
     }
     this->m_ctx->setNodeSymbol(&node, module);
     // A module only sees its own names and Core's, whatever encloses it
@@ -149,8 +148,7 @@ void ScopeResolver::visitFctDecl(const parser::FctDecl& node) {
         fcts = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Function);
         this->m_ctx->registerGeneric(node.name(), fcts);
     } else if (fcts->kind() != Symbol::Kind::Function) {
-        std::printf("[AF] %s is already declared in this scope and is not a function\n", node.name().c_str());
-        return;
+        throw NotAFunction(fcts, node.id());
     }
     this->m_ctx->setNodeSymbol(&node, fcts);
     // Signature is unknown until TypeResolver resolves the parameter types
@@ -242,8 +240,7 @@ const Type* TypeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
         return nullptr;
     }
     if (lhs != rhs) {
-        std::printf("[AF] Operator %s has operands of different types %s and %s\n", node.op().c_str(), lhs->name().c_str(), rhs->name().c_str());
-        return nullptr;
+        throw OperandMismatch(node.op(), lhs, rhs, node.id());
     }
     // TODO: comparisons should return Bool, not the operand type
     this->m_ctx->setNodeType(&node, lhs);
@@ -257,8 +254,7 @@ const Type* TypeResolver::visitAssign(const parser::Assign& node) {
         return nullptr;
     }
     if (target != value) {
-        std::printf("[AF] Cannot assign a %s to a %s\n", value->name().c_str(), target->name().c_str());
-        return nullptr;
+        throw TypeMismatch(target, value, node.id());
     }
     this->m_ctx->setNodeType(&node, target);
     return target;
@@ -345,8 +341,7 @@ const Type* TypeResolver::joinTypes(const Type* a, const Type* b) {
     if (b == this->nothingType() || a == b) {
         return a;
     }
-    std::printf("[AF] Paths return different types %s and %s\n", a->name().c_str(), b->name().c_str());
-    return nullptr; // TODO: throw
+    throw ConflictingReturnTypes(a, b); // TODO: throw
 }
 
 const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
@@ -356,8 +351,7 @@ const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
         // Symbol of the annotation, bound by ScopeResolver
         Symbol* ts = this->m_ctx->getNodeSymbol(param->type());
         if (ts == nullptr || ts->type() == nullptr) {
-            std::printf("[AF] Parameter %s of %s has an undefined type\n", param->name().c_str(), node.name().c_str());
-            return nullptr; // TODO: throw
+            throw UndefinedParameterType(*param, node); // TODO: throw
         }
         param_types.push_back(ts->type());
         // Give the parameter's own symbol its type so uses in the body are typed
@@ -375,12 +369,10 @@ const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
         return_type = rs ? rs->type() : nullptr;
     }
     if (return_type == nullptr) {
-        std::printf("[AF] Function %s has an undefined return type\n", node.name().c_str());
-        return nullptr; // TODO: throw
+        throw UndefinedReturnType(node); // TODO: throw
     }
     if (body_type != nullptr && body_type != this->nothingType() && body_type != return_type) {
-        std::printf("[AF] Function %s returns %s but is declared %s\n", node.name().c_str(), body_type->name().c_str(), return_type->name().c_str());
-        return nullptr; // TODO: throw
+        throw TypeMismatch(return_type, body_type, node.id()); // TODO: throw
     }
 
     // Now we will construct the function's signature
@@ -389,7 +381,7 @@ const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
     // 2: Get the method the are implementing
     Method* method = this->m_ctx->getNodeMethod(&node);
     if (method == nullptr) {
-        return nullptr; // TODO: throw
+        throw UnresolvedMethod(node); // TODO: throw
     }
     // 3: Loop over the methods (implementations) of the function to find duplicates
     for (const auto& other: this->m_ctx->getNodeSymbol(&node)->function()->methods()) {
@@ -397,8 +389,7 @@ const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
             continue;
         }
         if (other->type->args() == param_tuple) {
-            std::printf("[AF] Function %s is already defined for %s\n", node.name().c_str(), param_tuple->name().c_str());
-            return nullptr; // TODO: throw
+            throw DuplicateMethod(node, param_tuple); // TODO: throw
         }
     }
 

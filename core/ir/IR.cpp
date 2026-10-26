@@ -1,5 +1,5 @@
 #include <core/ir/IR.hpp>
-#include <core/Exception.hpp>
+#include <core/ir/Exception.hpp>
 #include <iterator>
 #include <set>
 
@@ -16,7 +16,7 @@ Opcode opcodeFor(const std::string& op) {
     if (op == "<=") return Opcode::LE;
     if (op == "==") return Opcode::EQ;
     if (op == "!=") return Opcode::NE;
-    throw CodegenError("unsupported operator '" + op + "'");
+    throw UnsupportedOperator(op);
 }
 
 } // namespace
@@ -119,16 +119,16 @@ Operand SSAIR::visitIntLiteral(const parser::IntLiteral& node) {
 // Operand's LITERAL payload is an int64, so there is nowhere to put these yet.
 // Fail loudly rather than lower them to something they are not: a silent
 // visitEmpty() here is indistinguishable from a correctly empty block.
-Operand SSAIR::visitFloatLiteral(const parser::FloatLiteral&) {
-    throw CodegenError("float literals are not lowered yet");
+Operand SSAIR::visitFloatLiteral(const parser::FloatLiteral& node) {
+    throw UnsupportedConstruct(node.kind(), node.id());
 }
 
-Operand SSAIR::visitBoolLiteral(const parser::BoolLiteral&) {
-    throw CodegenError("bool literals are not lowered yet");
+Operand SSAIR::visitBoolLiteral(const parser::BoolLiteral& node) {
+    throw UnsupportedConstruct(node.kind(), node.id());
 }
 
-Operand SSAIR::visitStringLiteral(const parser::StringLiteral&) {
-    throw CodegenError("string literals are not lowered yet");
+Operand SSAIR::visitStringLiteral(const parser::StringLiteral& node) {
+    throw UnsupportedConstruct(node.kind(), node.id());
 }
 
 Operand SSAIR::visitIdentifier(const parser::Identifier& node) {
@@ -168,7 +168,7 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     // function's id, which is also its FctId in the IR module
     context::Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
     if (s == nullptr || s->function() == nullptr || s->function()->methods().empty()) {
-        throw CodegenError("[IR] Callee is not a function");
+        throw NotCallable(node.callee()->id());
     }
     const Operand callee = FUNCTION(s->function()->methods().front()->id);
 
@@ -185,8 +185,8 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     return this->currentFct().addCall(this->currentBlock().id(), callee, args, ret);
 }
 
-Operand SSAIR::visitMemberExpr(const parser::MemberExpr&) {
-    throw CodegenError("member expressions are not lowered yet");
+Operand SSAIR::visitMemberExpr(const parser::MemberExpr& node) {
+    throw UnsupportedConstruct(node.kind(), node.id());
 }
 
 Operand SSAIR::visitReturnStmt(const parser::ReturnStmt& node) {
@@ -200,7 +200,7 @@ Operand SSAIR::visitFctDecl(const parser::FctDecl& node) {
     // The method registered by the ScopeResolver, its id is the IR FctId
     const context::Method* method = this->m_ctx->getNodeMethod(&node);
     if (method == nullptr) {
-        throw CodegenError("[IR] Function '" + node.name() + "' has no method");
+        throw MissingMethod(node);
     }
 
     // Save the enclosing position, to restore once the body is lowered
@@ -233,8 +233,8 @@ Operand SSAIR::visitFctDecl(const parser::FctDecl& node) {
     return NONE();
 }
 
-Operand SSAIR::visitModuleDecl(const parser::ModuleDecl&) {
-    throw CodegenError("module declarations are not lowered yet");
+Operand SSAIR::visitModuleDecl(const parser::ModuleDecl& node) {
+    throw UnsupportedConstruct(node.kind(), node.id());
 }
 
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
@@ -370,7 +370,7 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
         // Lower the signature the context deduced for this method
         const context::FunctionType* signature = fct->type;
         if (signature == nullptr) {
-            throw CodegenError("[IR] Function '" + fct->name + "' has no function type");
+            throw MissingFunctionType(*fct);
         }
         this->m_main.addFct(fct->name, fromContextType(signature->returns()), fct->isExternal());
         for (const context::Type* param: signature->args()->elements()) {
@@ -424,7 +424,7 @@ void SSAIR::resolveCriticalEdges(Function& fct) {
                 break;
             }
             default: {
-                throw CodegenError("[BasicBlock] Block '" + block.label() + "' does not end in a terminator");
+                throw MissingTerminator(block);
             }
         }
 

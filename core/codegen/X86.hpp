@@ -265,13 +265,7 @@ public:
         return this->m_blocks.back();
     }
 
-    const MachineBlock& getBlock(ir::BlockId bid) const {
-        const auto it = this->m_block_index.find(bid);
-        if (it == this->m_block_index.end()) {
-            throw CodegenError("[MachineFunction] Unknown block id " + std::to_string(bid) + " in '" + this->m_name + "'");
-        }
-        return this->m_blocks[it->second];
-    }
+    const MachineBlock& getBlock(ir::BlockId bid) const;
 
     MachineBlock& getBlock(ir::BlockId bid) {
         const MachineFunction& self = *this;

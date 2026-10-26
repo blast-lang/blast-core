@@ -1,4 +1,5 @@
 #pragma once
+#include <core/Exception.hpp>
 #include <cstdint>
 #include <concepts>
 #include <functional>
@@ -411,14 +412,14 @@ public:
     // Given a state, return the outbound transitions
     const std::unordered_map<T, StateInd>& outTransitions(const StateInd& q) const {
         if (q >= this->m_transitions.size())
-            throw std::out_of_range("state index out of range");
+            throw AutomataError("state index out of range", q);
         return this->m_transitions[q];
     }
 
     // Force transition
     void forceState(const StateInd& q) { 
         if (q >= this->m_transitions.size())
-            throw std::out_of_range("state index out of range");
+            throw AutomataError("state index out of range", q);
         this->m_current = q;
     }
 

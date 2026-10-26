@@ -1,5 +1,6 @@
 #include <core/utils/Dump.hpp>
 #include <core/ir/IR.hpp>
+#include <core/codegen/Exception.hpp>
 #include <core/parser/AstVisitor.hpp>
 #include <cctype>
 #include <cstdint>
@@ -454,7 +455,7 @@ char widthSuffix(ir::Type type) {
         case ir::Type::Width::W32: return 'l';
         case ir::Type::Width::W64: return 'q';
         default:
-            throw CodegenError("[emit] No AT&T suffix for width " + std::to_string(ir::bits(type)));
+            throw codegen::UnsupportedWidth(type);
     }
 }
 
@@ -465,14 +466,14 @@ std::string ptrSize(ir::Type type) {
         case ir::Type::Width::W32: return "DWORD PTR ";
         case ir::Type::Width::W64: return "QWORD PTR ";
         default:
-            throw CodegenError("[emit] No PTR size for width " + std::to_string(ir::bits(type)));
+            throw codegen::UnsupportedWidth(type);
     }
 }
 
 std::string mnemonic(codegen::MachineOpcode op) {
     const std::string name = machineOpcodeName(op);
     if (name == "?") {
-        throw CodegenError("[emit] Unknown opcode");
+        throw codegen::UnknownMachineOpcode(op);
     }
     return name;
 }
@@ -481,7 +482,7 @@ std::string attOperandText(const codegen::MachineOperand& op) {
     switch (op.m_kind) {
         case codegen::MachineOperand::Kind::PREG: {
             if (op.m_preg == nullptr) {
-                throw CodegenError("[emit] Physical register operand without a register");
+                throw codegen::MissingRegister(op);
             }
             std::string text = op.m_preg->label();
             for (char& c : text) {
@@ -501,9 +502,9 @@ std::string attOperandText(const codegen::MachineOperand& op) {
         case codegen::MachineOperand::Kind::LIT:
             return "$" + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
         case codegen::MachineOperand::Kind::VREG:
-            throw CodegenError("[emit] Virtual register %" + std::to_string(op.m_vreg) + " left at emit time");
+            throw codegen::UnallocatedRegister(op);
         default:
-            throw CodegenError("[emit] Unsupported operand kind at emit time");
+            throw codegen::UnsupportedMachineOperand(op);
     }
 }
 
@@ -511,7 +512,7 @@ std::string intelOperandText(const codegen::MachineOperand& op) {
     switch (op.m_kind) {
         case codegen::MachineOperand::Kind::PREG: {
             if (op.m_preg == nullptr) {
-                throw CodegenError("[emit] Physical register operand without a register");
+                throw codegen::MissingRegister(op);
             }
             std::string text = op.m_preg->label();
             for (char& c : text) {
@@ -532,9 +533,9 @@ std::string intelOperandText(const codegen::MachineOperand& op) {
         case codegen::MachineOperand::Kind::LIT:
             return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
         case codegen::MachineOperand::Kind::VREG:
-            throw CodegenError("[emit] Virtual register %" + std::to_string(op.m_vreg) + " left at emit time");
+            throw codegen::UnallocatedRegister(op);
         default:
-            throw CodegenError("[emit] Unsupported operand kind at emit time");
+            throw codegen::UnsupportedMachineOperand(op);
     }
 }
 

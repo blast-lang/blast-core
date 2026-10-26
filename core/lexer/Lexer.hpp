@@ -1,4 +1,5 @@
 #pragma once
+#include <core/Exception.hpp>
 #include <core/RangeAutomata.hpp>
 #include <string>
 #include <string_view>
@@ -133,6 +134,7 @@ public:
     struct Token {
         Tokenizer::TokenKind m_kind;
         std::string m_value;
+        SourceLocation m_location;
     };
 
 public:

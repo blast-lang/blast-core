@@ -1,5 +1,5 @@
 #include "Parser.hpp"
-#include <core/Exception.hpp>
+#include <core/parser/Exception.hpp>
 
 #include <iostream>
 
@@ -20,9 +20,9 @@ int bindingPower(const SimpleParser::Token& t) {
             if (t.m_value == ">=" ) return 5;
             if (t.m_value == "==" ) return 5;
             if (t.m_value == "!=" ) return 5;
-            throw ParseError("[Expr] Unknown binary operator '" + t.m_value + "'", 0);
+            throw UnknownOperator(t, 0);
         default:
-            throw ParseError("[Expr] Not an operator", 0);
+            throw UnexpectedToken({SimpleParser::TokenKind::BIN_OP, SimpleParser::TokenKind::ASSIGN}, t, 0);
     }
 }
 
@@ -43,7 +43,7 @@ void SimpleParser::parseStmt() {
         this->parseExpr();
         this->push(std::make_unique<ReturnStmt>(this->popAs<Expr>()));
         if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
-            throw ParseError("[Return] Expected ';' at the end of the statement", m_pos);
+            throw UnexpectedToken({TokenKind::ENDEXPR}, this->currentToken(), m_pos);
         }
         this->advance();
         return;
@@ -66,7 +66,7 @@ void SimpleParser::parseStmt() {
 
     // ';' terminates the statement.
     if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
-        throw ParseError("[Stmt] Expected ';' at the end of the statement", m_pos);
+        throw UnexpectedToken({TokenKind::ENDEXPR}, this->currentToken(), m_pos);
     }
     this->advance();
     return;
@@ -82,7 +82,7 @@ void SimpleParser::parseVarDecl() {
     auto name = this->popAs<Identifier>();
 
     if (this->currentToken().m_kind != TokenKind::COLON_COLON) {
-        throw ParseError("[VarDecl] Expected '::' after the declared name", m_pos);
+        throw UnexpectedToken({TokenKind::COLON_COLON}, this->currentToken(), m_pos);
     }
     this->advance();
 
@@ -136,6 +136,7 @@ void SimpleParser::parseWhileStmt() {
         body = this->popAs<Block>();
     } else {
         // TODO: throw
+        throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
     }
     // Push the wile statement onto the stack
     this->push(std::make_unique<WhileStmt>(std::move(cond), std::move(body)));
@@ -220,11 +221,11 @@ void SimpleParser::parseOperand() {
         // Fresh floor: the group process everything up to its ')'.
         this->parseExpr();
         if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
-            throw ParseError("[Expr] No closing parenthesis", m_pos);
+            throw UnexpectedToken({TokenKind::CLOSE_PAR}, this->currentToken(), m_pos);
         }
         this->advance();
     } else {
-        throw ParseError("[Expr] Expected an operand", m_pos);
+        throw UnexpectedToken({TokenKind::INT_LIT, TokenKind::FLOAT_LIT, TokenKind::BOOL_LIT, TokenKind::STR_LIT, TokenKind::IDENDIFIER, TokenKind::OPEN_PAR}, this->currentToken(), m_pos);
     }
 
     while (this->currentToken().m_kind == TokenKind::OPEN_PAR ||
@@ -269,13 +270,13 @@ void SimpleParser::parseModuleDecl() {
     this->parserIdentifier();
     auto name = this->popAs<Identifier>();
     if (this->currentToken().m_kind != TokenKind::OPEN_CURLBRAC) {
-        throw ParseError("[Module] Expected '{' after the module name", m_pos);
+        throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
     }
     this->advance();
     std::vector<std::unique_ptr<Stmt>> stmts;
     while (this->currentToken().m_kind != TokenKind::CLOSE_CURLBRAC) {
         if (this->currentToken().m_kind == TokenKind::NONE) {
-            throw ParseError("[Module] No closing brace", m_pos);
+            throw UnexpectedToken({TokenKind::CLOSE_CURLBRAC}, this->currentToken(), m_pos);
         }
         this->parseStmt();
         stmts.push_back(this->popAs<Stmt>());
@@ -290,7 +291,7 @@ void SimpleParser::parseMemberExpr() {
     this->advance();
     const Token& member = this->currentToken();
     if (member.m_kind != TokenKind::IDENDIFIER && member.m_kind != TokenKind::BIN_OP) {
-        throw ParseError("[MemberExpr] Expected a name or an operator after '.'", m_pos);
+        throw UnexpectedToken({TokenKind::IDENDIFIER, TokenKind::BIN_OP}, member, m_pos);
     }
     std::string name = member.m_value;
     this->advance();
@@ -315,7 +316,7 @@ void SimpleParser::parseCallExpr() {
             }
         }
         if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
-            throw ParseError("[CallExpr] No closing parenthesis", m_pos);
+            throw UnexpectedToken({TokenKind::CLOSE_PAR}, this->currentToken(), m_pos);
         }
     }
     this->advance();
@@ -329,6 +330,7 @@ void SimpleParser::parserFctDecl() {
 
     if (this->currentToken().m_kind != TokenKind::OPEN_PAR) {
         // TODO: Throw
+        throw UnexpectedToken({TokenKind::OPEN_PAR}, this->currentToken(), m_pos);
     }
     this->advance();
 
@@ -338,8 +340,9 @@ void SimpleParser::parserFctDecl() {
         args.push_back(this->popAs<VarDecl>());
         if (this->currentToken().m_kind == TokenKind::COMMA) {
             this->advance();
-        } else {
+        } else if (this->currentToken().m_kind != TokenKind::CLOSE_PAR) {
             // TODO: throw
+            throw UnexpectedToken({TokenKind::COMMA, TokenKind::CLOSE_PAR}, this->currentToken(), m_pos);
         }
     }
 
@@ -367,6 +370,7 @@ void SimpleParser::parserFctDecl() {
         body = this->popAs<Block>();
     } else {
         // TODO: throw
+        throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
     }
 
     this->push(std::make_unique<FctDecl>(name->name(), std::move(args), std::move(retype), std::move(body)));
@@ -413,7 +417,7 @@ void SimpleParser::parseLiteral() {
 // the caller's business, since only the caller knows the context it is in.
 void SimpleParser::parserIdentifier() {
     if (this->currentToken().m_kind != TokenKind::IDENDIFIER) {
-        throw ParseError("[Identifier] Expected an identifier", m_pos);
+        throw UnexpectedToken({TokenKind::IDENDIFIER}, this->currentToken(), m_pos);
     }
     const Token& tok = this->advance();
     this->push(std::make_unique<Identifier>(tok.m_value));

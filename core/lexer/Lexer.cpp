@@ -1,5 +1,5 @@
 #include "Lexer.hpp"
-#include <core/Exception.hpp>
+#include <core/lexer/Exception.hpp>
 #include <cctype>
 #include <cstdio>
 #include <string>
@@ -165,6 +165,8 @@ size_t runMaximalMunch(Tokenizer::SA& rule, std::string_view input, size_t pos) 
 void Tokenizer::process(std::string_view input) {
     size_t pos = 0;
     size_t end = 0;
+    size_t line = 1;
+    size_t line_start = 0;
     size_t best_end = 0;
     size_t best_rule = 0;
     Tokenizer::TokenKind best_kind = Tokenizer::TokenKind::NONE;
@@ -187,11 +189,18 @@ void Tokenizer::process(std::string_view input) {
                 }
             }
         }
+        const SourceLocation location{line, pos - line_start + 1};
         if (best_end == pos) {
-            throw blast::core::LexError(std::string("Unknown input '") + std::string(1, input[pos]) + "' (char=" + std::to_string((int)(unsigned char)input[pos]) + ")", pos);
+            throw UnknownInput(input[pos], pos, location);
         }
         if (std::get<2>(this->m_rules[best_rule]) != Tokenizer::TokenKind::NONE) {
-            this->m_tokens.push_back({std::get<2>(this->m_rules[best_rule]), std::string(input.substr(pos, best_end - pos))});
+            this->m_tokens.push_back({std::get<2>(this->m_rules[best_rule]), std::string(input.substr(pos, best_end - pos)), location});
+        }
+        for (size_t i(pos); i < best_end; i++) {
+            if (input[i] == '\n') {
+                ++line;
+                line_start = i + 1;
+            }
         }
         pos = best_end;
     }

@@ -1,5 +1,5 @@
 #include <core/codegen/X86.hpp>
-#include <core/Exception.hpp>
+#include <core/codegen/Exception.hpp>
 
 #include <algorithm>
 #include <array>
@@ -140,6 +140,14 @@ void X86::lowerBlock(MachineFunction& mfct, const ir::Function& fct, const ir::B
     }
 }
 
+const MachineBlock& MachineFunction::getBlock(ir::BlockId bid) const {
+    const auto it = this->m_block_index.find(bid);
+    if (it == this->m_block_index.end()) {
+        throw UnknownBlock(bid, this->m_name);
+    }
+    return this->m_blocks[it->second];
+}
+
 void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, MachineBlock& mblock, const ir::Instruction& inst) {
     const MachineOperand dst = this->lowerOperand(mfct, inst.result());
     const MachineOperand lhs = this->lowerOperand(mfct, inst.lhs());
@@ -185,7 +193,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
         {
             const auto cmp = this->m_cmps.find(inst.result().m_value);
             if (cmp == this->m_cmps.end()) {
-                throw CodegenError("[X86] CBR condition is not a comparison");
+                throw InvalidBranchCondition(inst.result());
             }
             MachineOpcode jump = MachineOpcode::JG;
             switch (cmp->second) {
@@ -195,7 +203,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
                 case ir::Opcode::LE: jump = MachineOpcode::JLE; break;
                 case ir::Opcode::EQ: jump = MachineOpcode::JE; break;
                 case ir::Opcode::NE: jump = MachineOpcode::JNE; break;
-                default: throw CodegenError("[X86] Unknown comparison");
+                default: throw UnsupportedComparison(cmp->second);
             }
             mblock.addInstruction(jump, lhs, MNONE());
             mblock.addInstruction(MachineOpcode::JMP, rhs, MNONE());
@@ -330,7 +338,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
             break;
         }
         default:
-            throw CodegenError("[X86] Unsupported opcode");
+            throw UnsupportedOpcode(inst.op());
     }
 }
 
@@ -349,7 +357,7 @@ MachineOperand X86::lowerOperand(MachineFunction& mfct, ir::Operand op) {
         case ir::Operand::Kind::FUNCTION:
             return SYM(this->m_mod->getFct(op.m_fct).name(), op.m_type);
         default:
-            throw CodegenError("[X86] Unsupported operand kind");
+            throw UnsupportedOperand(op);
     }
 }
 
@@ -364,7 +372,7 @@ void X86::addRegister(Register r) {
 ir::ValueId X86::getRegId(const std::string& name) const {
     const auto it = this->m_regnames.find(name);
     if (it == this->m_regnames.end()) {
-        throw CodegenError("[X86] Unknown register '" + name + "'");
+        throw UnknownRegister(name);
     }
     return it->second;
 }
@@ -419,7 +427,7 @@ MachineOperand X86::fixedVreg(MachineFunction& mfct, const std::string& name) co
 const std::set<ir::ValueId>& X86::family(ir::ValueId id) const {
     const auto it = this->m_families.find(id);
     if (it == this->m_families.end()) {
-        throw CodegenError("[X86] Unknown register id " + std::to_string(id));
+        throw UnknownRegisterId(id);
     }
     return it->second;
 }

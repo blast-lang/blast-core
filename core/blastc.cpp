@@ -59,11 +59,16 @@ int main(int argc, char* argv[]) {
         std::printf("%s", blast::core::utils::dump(tokenizer).c_str());
 
         parser.buildAST();
-    } catch (const blast::core::LexError& e) {
-        std::fprintf(stderr, "blastc: lex error at %zu: %s\n", e.position(), e.what());
+    } catch (blast::core::LexError& e) {
+        e.addFrame(std::string("in file '") + argv[1] + "'", e.location());
+        std::fprintf(stderr, "blastc: lex error: %s\n", blast::core::describe(e).c_str());
         return 1;
-    } catch (const blast::core::ParseError& e) {
-        std::fprintf(stderr, "blastc: parse error at token %zu: %s\n", e.position(), e.what());
+    } catch (blast::core::ParseError& e) {
+        const auto& tokens = tokenizer.tokens();
+        const blast::core::SourceLocation where = e.location().known() || e.position() >= tokens.size()
+            ? e.location() : tokens[e.position()].m_location;
+        e.addFrame(std::string("in file '") + argv[1] + "'", where);
+        std::fprintf(stderr, "blastc: parse error: %s\n", blast::core::describe(e).c_str());
         return 1;
     }
 
@@ -79,8 +84,9 @@ int main(int argc, char* argv[]) {
         sr.run(*parser.root());
         // Resolve Types
         tr.run(*parser.root());
-    } catch (const blast::core::SemanticError& e) {
-        std::fprintf(stderr, "blastc: %s\n", e.what());
+    } catch (blast::core::SemanticError& e) {
+        e.addFrame(std::string("in file '") + argv[1] + "'", e.location());
+        std::fprintf(stderr, "blastc: %s\n", blast::core::describe(e).c_str());
         return 1;
     }
     
@@ -152,8 +158,11 @@ int main(int argc, char* argv[]) {
         std::fflush(stdout);
         const int status = std::system(run.c_str());
         std::printf("blastc: %s exited with %d\n", stem.c_str(), status);
+    } catch (const blast::core::IRError& e) {
+        std::fprintf(stderr, "blastc: %s\n", blast::core::describe(e).c_str());
+        return 1;
     } catch (const blast::core::CodegenError& e) {
-        std::fprintf(stderr, "blastc: %s\n", e.what());
+        std::fprintf(stderr, "blastc: %s\n", blast::core::describe(e).c_str());
         return 1;
     }
 
