@@ -25,7 +25,7 @@ void ScopeResolver::visitVarDecl(const parser::VarDecl& node) {
     // First let's see if we are declaring a unique symbol
     if (this->m_current_scope->hasSymbol(node.name())) {
         // Throw 'Variable already declared in this scope'
-        throw Redeclaration(node.name(), node.id());
+        throw Redeclaration(node.name(), node);
     }
 
     // Let's declare this new symbol in the scope
@@ -46,7 +46,7 @@ void ScopeResolver::visitIdentifier(const parser::Identifier& node) {
     Symbol* s = this->m_current_scope->lookup(node.name());
     if (s == nullptr) {
         // Throw: Identifier not declared in this scope
-        throw UndeclaredIdentifier(node.name(), node.id());
+        throw UndeclaredIdentifier(node.name(), node);
     } else {
         this->m_ctx->setNodeSymbol(&node, s);
         std::printf("[AF] Visited identifier %s\n", node.name().c_str());
@@ -82,11 +82,11 @@ void ScopeResolver::visitMemberExpr(const parser::MemberExpr& node) {
         return;
     }
     if (base->kind() != Symbol::Kind::Module) {
-        throw NotAModule(base, node.id());
+        throw NotAModule(base, node);
     }
     Symbol* member = base->moduleScope()->lookupLocal(node.member());
     if (member == nullptr) {
-        throw UnknownMember(node.member(), base, node.id());
+        throw UnknownMember(node.member(), base, node);
     } else {
         this->m_ctx->setNodeSymbol(&node, member);
     }
@@ -95,7 +95,7 @@ void ScopeResolver::visitMemberExpr(const parser::MemberExpr& node) {
 void ScopeResolver::visitModuleDecl(const parser::ModuleDecl& node) {
     Symbol* module = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Module);
     if (module == nullptr) {
-        throw Redeclaration(node.name(), node.id());
+        throw Redeclaration(node.name(), node);
     }
     this->m_ctx->setNodeSymbol(&node, module);
     // A module only sees its own names and Core's, whatever encloses it
@@ -148,7 +148,7 @@ void ScopeResolver::visitFctDecl(const parser::FctDecl& node) {
         fcts = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Function);
         this->m_ctx->registerGeneric(node.name(), fcts);
     } else if (fcts->kind() != Symbol::Kind::Function) {
-        throw NotAFunction(fcts, node.id());
+        throw NotAFunction(fcts, node);
     }
     this->m_ctx->setNodeSymbol(&node, fcts);
     // Signature is unknown until TypeResolver resolves the parameter types
@@ -240,7 +240,7 @@ const Type* TypeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
         return nullptr;
     }
     if (lhs != rhs) {
-        throw OperandMismatch(node.op(), lhs, rhs, node.id());
+        throw OperandMismatch(node.op(), lhs, rhs, node);
     }
     // TODO: comparisons should return Bool, not the operand type
     this->m_ctx->setNodeType(&node, lhs);
@@ -254,7 +254,7 @@ const Type* TypeResolver::visitAssign(const parser::Assign& node) {
         return nullptr;
     }
     if (target != value) {
-        throw TypeMismatch(target, value, node.id());
+        throw TypeMismatch(target, value, node);
     }
     this->m_ctx->setNodeType(&node, target);
     return target;
@@ -372,7 +372,7 @@ const Type* TypeResolver::visitFctDecl(const parser::FctDecl& node) {
         throw UndefinedReturnType(node); // TODO: throw
     }
     if (body_type != nullptr && body_type != this->nothingType() && body_type != return_type) {
-        throw TypeMismatch(return_type, body_type, node.id()); // TODO: throw
+        throw TypeMismatch(return_type, body_type, node); // TODO: throw
     }
 
     // Now we will construct the function's signature

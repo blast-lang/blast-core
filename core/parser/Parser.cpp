@@ -27,6 +27,7 @@ int bindingPower(const SimpleParser::Token& t) {
 }
 
 void SimpleParser::parseStmt() {
+    const SourceLocation start = this->currentToken().m_location;
     if (this->currentToken().m_kind == TokenKind::IDENDIFIER &&
         this->nextToken().m_kind == TokenKind::COLON_COLON) {
         this->parseVarDecl();
@@ -41,7 +42,7 @@ void SimpleParser::parseStmt() {
     } else if (this->currentToken().m_kind == TokenKind::RETURN_STMT) {
         this->advance();
         this->parseExpr();
-        this->push(std::make_unique<ReturnStmt>(this->popAs<Expr>()));
+        this->push(std::make_unique<ReturnStmt>(this->popAs<Expr>()), start);
         if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
             throw UnexpectedToken({TokenKind::ENDEXPR}, this->currentToken(), m_pos);
         }
@@ -62,7 +63,7 @@ void SimpleParser::parseStmt() {
 
     // Both branches leave an Expr on the stack (declarations are expressions,
     // as in Julia); at statement level its value is discarded.
-    this->push(std::make_unique<ExprStmt>(this->popAs<Expr>()));
+    this->push(std::make_unique<ExprStmt>(this->popAs<Expr>()), start);
 
     // ';' terminates the statement.
     if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
@@ -98,12 +99,14 @@ void SimpleParser::parseVarDecl() {
         init = this->popAs<Expr>();
     }
 
-    this->push(std::make_unique<VarDecl>(name->name(), std::move(type), std::move(init)));
+    const SourceLocation start = name->location();
+    this->push(std::make_unique<VarDecl>(name->name(), std::move(type), std::move(init)), start);
     return;
 }
 
 
 void SimpleParser::parseIfStmt() {
+    const SourceLocation start = this->currentToken().m_location;
     // Parse the condition as expression
     this->advance();
     this->parseExpr();
@@ -121,11 +124,12 @@ void SimpleParser::parseIfStmt() {
         }
     }
     // Push the if statement onto the stack
-    this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), std::move(else_block)));
+    this->push(std::make_unique<IfStmt>(std::move(cond), std::move(if_block), std::move(else_block)), start);
     return;
 }
 
 void SimpleParser::parseWhileStmt() {
+    const SourceLocation start = this->currentToken().m_location;
     // Parse the condition as expression
     this->advance();
     this->parseExpr();
@@ -139,7 +143,7 @@ void SimpleParser::parseWhileStmt() {
         throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
     }
     // Push the wile statement onto the stack
-    this->push(std::make_unique<WhileStmt>(std::move(cond), std::move(body)));
+    this->push(std::make_unique<WhileStmt>(std::move(cond), std::move(body)), start);
     return;
 }
 
@@ -148,6 +152,7 @@ void SimpleParser::parseForStmt() {
 }
 
 void SimpleParser::parseBlock() {
+    const SourceLocation start = this->currentToken().m_location;
     std::unique_ptr<Block> block = std::make_unique<Block>();
     // Consume opening bracket
     this->advance();
@@ -162,7 +167,7 @@ void SimpleParser::parseBlock() {
     // Consume closing bracket
     this->advance();
     // Push the block onto the stack
-    this->push(std::move(block));
+    this->push(std::move(block), start);
     return;
 }
 
@@ -250,21 +255,23 @@ void SimpleParser::parseBinaryExpr() {
     // rhs comes off first as it was pushed last
     auto  rhs = this->popAs<Expr>();
     auto  lhs = this->popAs<Expr>();
+    const SourceLocation start = lhs->location();
 
     if (op.m_kind == TokenKind::ASSIGN) {
-        this->push(std::make_unique<Assign>(std::move(lhs), std::move(rhs)));
+        this->push(std::make_unique<Assign>(std::move(lhs), std::move(rhs)), start);
     } else {
         this->push(std::make_unique<BinaryExpr>(
             std::move(op.m_value),
             std::move(lhs),
             std::move(rhs)
-        ));
+        ), start);
     }
     return;
 }
 
 
 void SimpleParser::parseModuleDecl() {
+    const SourceLocation start = this->currentToken().m_location;
     // skip 'module'
     this->advance();
     this->parserIdentifier();
@@ -282,11 +289,12 @@ void SimpleParser::parseModuleDecl() {
         stmts.push_back(this->popAs<Stmt>());
     }
     this->advance();
-    this->push(std::make_unique<ModuleDecl>(name->name(), std::move(stmts)));
+    this->push(std::make_unique<ModuleDecl>(name->name(), std::move(stmts)), start);
 }
 
 void SimpleParser::parseMemberExpr() {
     auto base = this->popAs<Expr>();
+    const SourceLocation start = base->location();
     // skip '.'
     this->advance();
     const Token& member = this->currentToken();
@@ -295,11 +303,12 @@ void SimpleParser::parseMemberExpr() {
     }
     std::string name = member.m_value;
     this->advance();
-    this->push(std::make_unique<MemberExpr>(std::move(base), std::move(name)));
+    this->push(std::make_unique<MemberExpr>(std::move(base), std::move(name)), start);
 }
 
 void SimpleParser::parseCallExpr() {
     auto callee = this->popAs<Expr>();
+    const SourceLocation start = callee->location();
     // skip '('
     this->advance();
     std::vector<std::unique_ptr<Expr>> args;
@@ -320,10 +329,11 @@ void SimpleParser::parseCallExpr() {
         }
     }
     this->advance();
-    this->push(std::make_unique<CallExpr>(std::move(callee), std::move(args)));
+    this->push(std::make_unique<CallExpr>(std::move(callee), std::move(args)), start);
 }
 
 void SimpleParser::parserFctDecl() {
+    const SourceLocation start = this->currentToken().m_location;
     this->advance();
     this->parserIdentifier();
     auto name = this->popAs<Identifier>();
@@ -373,30 +383,31 @@ void SimpleParser::parserFctDecl() {
         throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
     }
 
-    this->push(std::make_unique<FctDecl>(name->name(), std::move(args), std::move(retype), std::move(body)));
+    this->push(std::make_unique<FctDecl>(name->name(), std::move(args), std::move(retype), std::move(body)), start);
 }
 
 
 void SimpleParser::parseLiteral() {
+    const SourceLocation start = this->currentToken().m_location;
     // Let's see the first token in the stip do decide what to parse
     switch (this->currentToken().m_kind) {
         //  ---- Literals
         case TokenKind::INT_LIT: {
             std::int64_t value = std::stoll(this->currentToken().m_value);
             this->advance();
-            this->push(std::make_unique<IntLiteral>(value));
+            this->push(std::make_unique<IntLiteral>(value), start);
             return;
         }
         case TokenKind::FLOAT_LIT: {
             double value = std::stod(this->currentToken().m_value);
             this->advance();
-            this->push(std::make_unique<FloatLiteral>(value));
+            this->push(std::make_unique<FloatLiteral>(value), start);
             return;
         }
         case TokenKind::BOOL_LIT: {
             bool value = (this->currentToken().m_value == "true");
             this->advance();
-            this->push(std::make_unique<BoolLiteral>(value));
+            this->push(std::make_unique<BoolLiteral>(value), start);
             return;
         }
         case TokenKind::STR_LIT: {
@@ -406,7 +417,7 @@ void SimpleParser::parseLiteral() {
                 value = value.substr(1, value.size() - 2);
             }
             this->advance();
-            this->push(std::make_unique<StringLiteral>(std::move(value)));
+            this->push(std::make_unique<StringLiteral>(std::move(value)), start);
             return;
         }
     }
@@ -420,17 +431,18 @@ void SimpleParser::parserIdentifier() {
         throw UnexpectedToken({TokenKind::IDENDIFIER}, this->currentToken(), m_pos);
     }
     const Token& tok = this->advance();
-    this->push(std::make_unique<Identifier>(tok.m_value));
+    this->push(std::make_unique<Identifier>(tok.m_value), tok.m_location);
     return;
 }
 
 void SimpleParser::parseTranslationUnit() {
+    const SourceLocation start = this->currentToken().m_location;
     auto unit = std::make_unique<TranslationUnit>();
     while (this->currentToken().m_kind != TokenKind::NONE) {
         this->parseStmt();
         unit->add(this->popAs<Stmt>());
     }
-    this->push(std::move(unit));
+    this->push(std::move(unit), start);
     return;
 }
 

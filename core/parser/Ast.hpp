@@ -1,4 +1,5 @@
 #pragma once
+#include <core/Exception.hpp>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -69,9 +70,15 @@ public:
     NodeId id() const { return m_id; }
     void setId(NodeId id) { m_id = id; }
 
+    // Where the node starts in the source: the location of its first token.
+    // Unknown for a node built by hand outside a parser.
+    SourceLocation location() const { return m_location; }
+    void setLocation(SourceLocation location) { m_location = location; }
+
 private:
     const Kind m_kind;
     NodeId m_id = INVALID_NODE_ID;
+    SourceLocation m_location;
 };
 
 // ---------------------------------------------------------------------------

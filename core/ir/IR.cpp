@@ -120,15 +120,15 @@ Operand SSAIR::visitIntLiteral(const parser::IntLiteral& node) {
 // Fail loudly rather than lower them to something they are not: a silent
 // visitEmpty() here is indistinguishable from a correctly empty block.
 Operand SSAIR::visitFloatLiteral(const parser::FloatLiteral& node) {
-    throw UnsupportedConstruct(node.kind(), node.id());
+    throw UnsupportedConstruct(node);
 }
 
 Operand SSAIR::visitBoolLiteral(const parser::BoolLiteral& node) {
-    throw UnsupportedConstruct(node.kind(), node.id());
+    throw UnsupportedConstruct(node);
 }
 
 Operand SSAIR::visitStringLiteral(const parser::StringLiteral& node) {
-    throw UnsupportedConstruct(node.kind(), node.id());
+    throw UnsupportedConstruct(node);
 }
 
 Operand SSAIR::visitIdentifier(const parser::Identifier& node) {
@@ -168,7 +168,7 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     // function's id, which is also its FctId in the IR module
     context::Symbol* s = this->m_ctx->getNodeSymbol(node.callee());
     if (s == nullptr || s->function() == nullptr || s->function()->methods().empty()) {
-        throw NotCallable(node.callee()->id());
+        throw NotCallable(*node.callee());
     }
     const Operand callee = FUNCTION(s->function()->methods().front()->id);
 
@@ -186,7 +186,7 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
 }
 
 Operand SSAIR::visitMemberExpr(const parser::MemberExpr& node) {
-    throw UnsupportedConstruct(node.kind(), node.id());
+    throw UnsupportedConstruct(node);
 }
 
 Operand SSAIR::visitReturnStmt(const parser::ReturnStmt& node) {
@@ -234,7 +234,7 @@ Operand SSAIR::visitFctDecl(const parser::FctDecl& node) {
 }
 
 Operand SSAIR::visitModuleDecl(const parser::ModuleDecl& node) {
-    throw UnsupportedConstruct(node.kind(), node.id());
+    throw UnsupportedConstruct(node);
 }
 
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {

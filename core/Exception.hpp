@@ -85,7 +85,13 @@ private:
 // Raised while lowering the AST to IR.
 class IRError: public Exception {
 public:
-    explicit IRError(const std::string& message): Exception(message) {}
+    explicit IRError(const std::string& message, SourceLocation location = {}):
+        Exception(message), m_location(location) {}
+
+    SourceLocation location() const { return m_location; }
+
+private:
+    SourceLocation m_location;
 };
 
 // Raised while lowering the IR to machine code: unknown identifier,

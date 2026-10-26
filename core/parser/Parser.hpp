@@ -54,8 +54,10 @@ private:
     // Every node reaches the tree through here, so this is where NodeIds are
     // handed out: ids come out dense over one parse, and a node kind added
     // later cannot be left unnumbered by accident.
-    void push(std::unique_ptr<ASTNode> node) {
+    // The location is where the node starts, taken from the lexer's token.
+    void push(std::unique_ptr<ASTNode> node, SourceLocation location) {
         node->setId(this->m_next_node_id++);
+        node->setLocation(location);
         this->m_parse_stack.push(std::move(node));
     }
 

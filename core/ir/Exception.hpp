@@ -18,9 +18,9 @@ private:
 // An AST node the front end accepts but the lowering does not handle yet.
 class UnsupportedConstruct: public IRError {
 public:
-    UnsupportedConstruct(parser::ASTNode::Kind kind, parser::NodeId node):
-        IRError("AST node kind " + std::to_string((int)kind) + " (node " + std::to_string(node) + ") is not lowered yet"),
-        m_kind(kind), m_node(node) {}
+    explicit UnsupportedConstruct(const parser::ASTNode& node):
+        IRError("AST node kind " + std::to_string((int)node.kind()) + " (node " + std::to_string(node.id()) + ") is not lowered yet", node.location()),
+        m_kind(node.kind()), m_node(node.id()) {}
 
     parser::ASTNode::Kind kind() const { return m_kind; }
     parser::NodeId node() const { return m_node; }
@@ -32,8 +32,9 @@ private:
 
 class NotCallable: public IRError {
 public:
-    explicit NotCallable(parser::NodeId callee):
-        IRError("[IR] Callee (node " + std::to_string(callee) + ") is not a function"), m_callee(callee) {}
+    explicit NotCallable(const parser::ASTNode& callee):
+        IRError("[IR] Callee (node " + std::to_string(callee.id()) + ") is not a function", callee.location()),
+        m_callee(callee.id()) {}
 
     parser::NodeId callee() const { return m_callee; }
 
@@ -44,7 +45,7 @@ private:
 class MissingMethod: public IRError {
 public:
     explicit MissingMethod(const parser::FctDecl& decl):
-        IRError("[IR] Function '" + decl.name() + "' has no method"), m_name(decl.name()), m_node(decl.id()) {}
+        IRError("[IR] Function '" + decl.name() + "' has no method", decl.location()), m_name(decl.name()), m_node(decl.id()) {}
 
     const std::string& name() const { return m_name; }
     parser::NodeId node() const { return m_node; }

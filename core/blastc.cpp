@@ -158,7 +158,8 @@ int main(int argc, char* argv[]) {
         std::fflush(stdout);
         const int status = std::system(run.c_str());
         std::printf("blastc: %s exited with %d\n", stem.c_str(), status);
-    } catch (const blast::core::IRError& e) {
+    } catch (blast::core::IRError& e) {
+        e.addFrame(std::string("in file '") + argv[1] + "'", e.location());
         std::fprintf(stderr, "blastc: %s\n", blast::core::describe(e).c_str());
         return 1;
     } catch (const blast::core::CodegenError& e) {
