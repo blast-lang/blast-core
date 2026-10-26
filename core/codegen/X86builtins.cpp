@@ -73,8 +73,7 @@ MachineFunction blast_print_int(const X86& x86, const ir::Type& type) {
     MachineFunction fct(
         // id makes no sense here
         std::numeric_limits<ir::FctId>::max(),
-        fct_name,
-        0
+        fct_name
     );
     // Create its entry block
     MachineBlock& entry = fct.addBlock(0, fct_name + "__entry");
@@ -85,15 +84,17 @@ MachineFunction blast_print_int(const X86& x86, const ir::Type& type) {
     // SUB rsp, 16 (make room for the format string, needs only 5 bytes but we pad it to 16)
     entry.addInstruction(MachineOpcode::SUB, x86.getPREG("RSP"), LIT({ .m_i64 = 16 }, ir::PTR()));
     // MOV rax, <str format code>
-    entry.addInstruction(MachineOpcode::MOV, x86.getPREG("RAX"), LIT({ .m_i64 = format_code }, ir::INT(ir::Type::Width::W64)));
+    const MachineOperand rax = x86.fixedVreg(fct, "RAX");
+    entry.addInstruction(MachineOpcode::MOV, rax, LIT({ .m_i64 = format_code }, ir::INT(ir::Type::Width::W64)));
     // MOV [rsp], rax
-    entry.addInstruction(MachineOpcode::MOV, MEM(&x86.getReg("RSP"), 0, ir::INT(ir::Type::Width::W64)), x86.getPREG("RAX"));
+    entry.addInstruction(MachineOpcode::MOV, MEM(&x86.getReg("RSP"), 0, ir::INT(ir::Type::Width::W64)), rax);
     // MOV rsi, rdi
-    entry.addInstruction(MachineOpcode::MOV, x86.getPREG("RSI"), x86.getPREG("RDI"));
+    entry.addInstruction(MachineOpcode::MOV, x86.fixedVreg(fct, "RSI"), x86.fixedVreg(fct, "RDI"));
     // MOV rdi, rsp
-    entry.addInstruction(MachineOpcode::MOV, x86.getPREG("RDI"), x86.getPREG("RSP"));
+    entry.addInstruction(MachineOpcode::MOV, x86.fixedVreg(fct, "RDI"), x86.getPREG("RSP"));
     // XOR eax, eax
-    entry.addInstruction(MachineOpcode::XOR, x86.getPREG("EAX"), x86.getPREG("EAX"));
+    const MachineOperand eax = x86.fixedVreg(fct, "EAX");
+    entry.addInstruction(MachineOpcode::XOR, eax, eax);
     // CALL printf
     entry.addInstruction(MachineOpcode::CALL, SYM("printf", ir::PTR()), MNONE());
     // RET

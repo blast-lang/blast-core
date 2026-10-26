@@ -109,6 +109,15 @@ int main(int argc, char* argv[]) {
             stem = stem.substr(0, dot);
         }
 
+        const std::string ir_path = stem + ".ir";
+        std::ofstream ir_file(ir_path);
+        if (!ir_file) {
+            std::fprintf(stderr, "blastc: cannot write '%s'\n", ir_path.c_str());
+            return 1;
+        }
+        ir_file << blast::core::utils::dump(module);
+        ir_file.close();
+
         const std::string asm_path = stem + ".s";
         std::ofstream asm_file(asm_path);
         if (!asm_file) {

@@ -32,7 +32,7 @@ void X86::lowerBuiltins() {
 }
 
 void X86::lowerFct(const ir::Function& fct) {
-    this->m_fcts.push_back(MachineFunction(fct.id(), fct.name(), fct.nextValue()));
+    this->m_fcts.push_back(MachineFunction(fct.id(), fct.name()));
     MachineFunction& mfct = this->m_fcts.back();
     // Function ALWAYS have an entry block
     const ir::BasicBlock& entry = fct.getBlock(0);
@@ -84,14 +84,14 @@ void X86::lowerFct(const ir::Function& fct) {
     };
     const Register* rbp = &this->getReg("RBP");
     for (const ir::Operand& a: fct.args()) {
-        const MachineOperand dst = VREG(a.m_value, a.m_type);
+        const MachineOperand dst = this->valueVreg(mfct, a.m_value, a.m_type);
         if (a.m_type.m_kind == ir::Type::Kind::FLOAT) {
             if (nb_float < float_regs.size()) {
-                mentry.addInstruction(MachineOpcode::MOV, dst, PREG(float_regs[nb_float++], a.m_type));
+                mentry.addInstruction(MachineOpcode::MOV, dst, this->fixedVreg(mfct, float_regs[nb_float++], a.m_type));
                 continue;
             }
         } else if (nb_int < int_regs.size()) {
-            mentry.addInstruction(MachineOpcode::MOV, dst, PREG(int_regs[nb_int++], a.m_type));
+            mentry.addInstruction(MachineOpcode::MOV, dst, this->fixedVreg(mfct, int_regs[nb_int++], a.m_type));
             continue;
         }
         // Saved RBP and the return address sit between RBP and the first stack argument:
@@ -204,7 +204,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
         case ir::Opcode::RET:
             // The returned value sits in m_src so liveness reads it as a use:
             // as a destination it would look like a write and kill the value.
-            mblock.addInstruction(MachineOpcode::MOV, PREG(&this->getReg("RAX"), inst.lhs().m_type), lhs);
+            mblock.addInstruction(MachineOpcode::MOV, this->fixedVreg(mfct, &this->getReg("RAX"), inst.lhs().m_type), lhs);
             mblock.addInstruction(MachineOpcode::RET, MNONE(), lhs);
             break;
         // Unconditionnal jump
@@ -265,7 +265,18 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
                 if (a.m_type.m_kind == ir::Type::Kind::INT || a.m_type.m_kind == ir::Type::Kind::UINT || a.m_type.m_kind == ir::Type::Kind::PTR) {
                     if (nb_int < int_regs.size()) {
                         // TODO: Handle different width
-                        mblock.addInstruction(MachineOpcode::MOV, PREG(int_regs[nb_int++], a.m_type), this->lowerOperand(mfct, a));
+                        // Put the arguments into register:
+                        // f(a, b) = a + b
+                        // Becomes naivly
+                        // MOV %0, RDI
+                        // MOV %1, RSI
+                        // MOV %2, %0
+                        // ADD %2, %1
+                        // MOV RAX, %2 (return)
+                        // This will be later colored by can easily be optimized by
+                        // doing a biased coloring: MOV %0, RDI becomes MOV RDI, RDI if %0 as RDI as free color
+                        // Then the whole instruction can be optimized out
+                        mblock.addInstruction(MachineOpcode::MOV, this->fixedVreg(mfct, int_regs[nb_int++], a.m_type), this->lowerOperand(mfct, a));
                     } else {
                         // Put to stack
                         // TODO: Use multiple slots for args >= 64 bits
@@ -275,7 +286,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
                 if (a.m_type.m_kind == ir::Type::Kind::FLOAT) {
                     if (nb_float < float_regs.size()) {
                         // TODO: Handle different width
-                        mblock.addInstruction(MachineOpcode::MOV, PREG(float_regs[nb_float++], a.m_type), this->lowerOperand(mfct, a));
+                        mblock.addInstruction(MachineOpcode::MOV, this->fixedVreg(mfct, float_regs[nb_float++], a.m_type), this->lowerOperand(mfct, a));
                     } else {
                         // Put to stack
                         // TODO: Use multiple slots for args >= 64 bits
@@ -309,7 +320,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
 
             // Put return value (RAX) into 'dst'
             if (inst.result().m_kind != ir::Operand::Kind::NONE) {
-                mblock.addInstruction(MachineOpcode::MOV, dst, this->getPREG("RAX"));
+                mblock.addInstruction(MachineOpcode::MOV, dst, this->fixedVreg(mfct, &this->getReg("RAX"), inst.result().m_type));
             }
 
             if (stack_size > 0) {
@@ -328,7 +339,7 @@ MachineOperand X86::lowerOperand(MachineFunction& mfct, ir::Operand op) {
         case ir::Operand::Kind::NONE:
             return MNONE();
         case ir::Operand::Kind::REGISTER:
-            return VREG(op.m_value, op.m_type);
+            return this->valueVreg(mfct, op.m_value, op.m_type);
         case ir::Operand::Kind::LITERAL:
             return LIT(op.m_lit, op.m_type);
         case ir::Operand::Kind::BLOCK:
@@ -364,6 +375,45 @@ const Register& X86::getReg(const std::string& name) const {
 
 MachineOperand X86::getPREG(const std::string& name) const {
     return PREG(&this->getReg(name));
+}
+
+// An IR value always maps to the same vreg of the function: the first time we see it
+// we create it, then every later use reuses it instead of making a copy.
+// Creating it also sets its domain (the colors it can take): only X86 knows the
+// registers and the domain depends on the type, so it is built here and stored in the
+// function's vreg table
+MachineOperand X86::valueVreg(MachineFunction& mfct, ir::ValueId value, ir::Type type) const {
+    const auto it = mfct.valueVregs().find(value);
+    if (it != mfct.valueVregs().end()) {
+        return VREG(it->second, type);
+    }
+    // For an operand x, we will add to its domain ONLY registers that:
+    // 1) Are not reserved
+    // 2) Are the same type
+    // 3) Whose with is >= of the operand's witdh
+    std::set<ir::ValueId> domain;
+    for (const Register& r: this->m_registers) {
+        if (
+            !r.reserved() &&
+            r.type().m_kind == type.m_kind &&
+            r.type().m_width >= type.m_width
+        ) {
+            domain.insert(r.id());
+        }
+    }
+    // Not fixed: the allocator picks one of these colors
+    const VregId v = mfct.newVreg(type, std::move(domain), false);
+    mfct.valueVregs()[value] = v;
+    return VREG(v, type);
+}
+
+MachineOperand X86::fixedVreg(MachineFunction& mfct, const Register* reg, ir::Type type) const {
+    return VREG(mfct.newVreg(type, { reg->id() }, true), type);
+}
+
+MachineOperand X86::fixedVreg(MachineFunction& mfct, const std::string& name) const {
+    const Register* reg = &this->getReg(name);
+    return this->fixedVreg(mfct, reg, reg->type());
 }
 
 const std::set<ir::ValueId>& X86::family(ir::ValueId id) const {
@@ -812,10 +862,6 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         return operand.m_kind == MachineOperand::Kind::VREG;
     };
 
-    auto isPreg = [](const MachineOperand& operand) {
-        return operand.m_kind == MachineOperand::Kind::PREG;
-    };
-
     // Liveness is about values, not operand slots: the same vreg read by two
     // instructions must compare equal
     auto regId = [](const MachineOperand& operand) -> ir::ValueId {
@@ -852,8 +898,25 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         if (instr->m_op == MachineOpcode::PUSH && isVreg(instr->m_src)) {
             use[instr].insert(regId(instr->m_src));
         }
-        if (isPreg(instr->m_dst)) {
-            clobber[instr].insert(instr->m_dst.m_preg->id());
+        // CMP only sets the flags: it reads both operands and writes none
+        if (instr->m_op == MachineOpcode::CMP) {
+            if (isVreg(instr->m_src)) {
+                use[instr].insert(regId(instr->m_src));
+            }
+            if (isVreg(instr->m_dst)) {
+                use[instr].insert(regId(instr->m_dst));
+            }
+        }
+        if (instr->m_op == MachineOpcode::LEA) {
+            if (isVreg(instr->m_src)) {
+                use[instr].insert(regId(instr->m_src));
+            }
+            if (isVreg(instr->m_dst)) {
+                wrt[instr].insert(regId(instr->m_dst));
+            }
+        }
+        if (instr->m_op == MachineOpcode::POP && isVreg(instr->m_dst)) {
+            wrt[instr].insert(regId(instr->m_dst));
         }
         // A callee may return having trashed every caller-saved register
         if (instr->m_op == MachineOpcode::CALL) {
@@ -914,16 +977,12 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
 
     // List all vregs in the function
     std::set<ir::ValueId> operands;
-    // Get VREG information
-    std::unordered_map<ir::ValueId, ir::Type> types;
     for (auto it = order.begin(); it != order.end(); ++it) {
         MachineInstruction* i = *it;
         if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
-            types[regId(i->m_src)] = i->m_src.m_type;
             operands.insert(regId(i->m_src));
         }
         if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
-            types[regId(i->m_dst)] = i->m_dst.m_type;
             operands.insert(regId(i->m_dst));
         }
     }
@@ -949,55 +1008,44 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
 
     // Coloring
     // Domains is the list of colors (PREG) an operand (VREG) can take
+    // The domains are kept in the function, work on a copy since coloring narrows them
     std::unordered_map<ir::ValueId, std::set<ir::ValueId>> domains;
     for (ir::ValueId x: operands) {
-        domains[x] = {};
-    }
-
-    // For an operand x, we will add to its domain ONLY registers that:
-    // 1) are not reserved
-    // 2) Are the same type
-    // 3) Which with is >= of the operand's witdh
-    for (ir::ValueId x: operands) {
-        for(const Register& r: x86.registers()) {
-            if(
-                !r.reserved() &&
-                r.type().m_kind == types[x].m_kind &&
-                r.type().m_width >= types[x].m_width
-            ) {
-                domains.at(x).insert(r.id());
-            }
-        }
+        domains[x] = fct.domain(x);
     }
 
     // A value live across an instruction cannot sit in a register that
     // instruction destroys
     for (MachineInstruction* i: order) {
         for (ir::ValueId y: out[i]) {
+            if (fct.isFixed(y)) {
+                continue;
+            }
             for (ir::ValueId r: clobber[i]) {
                 domains.at(y).erase(r);
             }
         }
     }
 
-    // Incoming physical registers (arguments) are not tracked as live, so a vreg
-    // copied out of one must not take any of them, or it could overwrite an
-    // argument that was not copied yet
-    // TODO: Track physical registers liveness to optimize this out
-    std::set<ir::ValueId> copied_from;
-    for (MachineInstruction* i: order) {
-        if (i->m_op == MachineOpcode::MOV && isVreg(i->m_dst) && isPreg(i->m_src)) {
-            for (ir::ValueId r: x86.family(i->m_src.m_preg->id())) {
-                copied_from.insert(r);
-            }
+    // A fixed vreg already has its color: it takes it out of its neighboors' domains
+    // and leaves the graph, so only the free vregs are left to color
+    std::unordered_map<ir::ValueId, ir::ValueId> colors;
+    for (ir::ValueId x: operands) {
+        if (!fct.isFixed(x)) {
+            continue;
         }
-    }
-    for (MachineInstruction* i: order) {
-        if (i->m_op == MachineOpcode::MOV && isVreg(i->m_dst) && isPreg(i->m_src)) {
-            for (ir::ValueId r: copied_from) {
-                domains.at(regId(i->m_dst)).erase(r);
+        const ir::ValueId color = *domains.at(x).begin();
+        colors[x] = color;
+        for (ir::ValueId n: inter_graph.at(x)) {
+            if (fct.isFixed(n)) {
+                continue;
             }
+            for (ir::ValueId c: x86.family(color)) {
+                domains.at(n).erase(c);
+            }
+            inter_graph.at(n).erase(x);
         }
+        inter_graph.erase(x);
     }
 
     // Now, the algorithm
@@ -1015,9 +1063,17 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         }
         K[x] = counted.size();
     }
+
     // Find an operand which has < K neighboors
     // Those node can be colored without spilling
-    std::unordered_map<ir::ValueId, ir::ValueId> colors;
+    // The vregs each vreg is copied to or from by a MOV
+    std::unordered_map<ir::ValueId, std::vector<ir::ValueId>> moves;
+    for (MachineInstruction* i: order) {
+        if (i->m_op == MachineOpcode::MOV && isVreg(i->m_dst) && isVreg(i->m_src)) {
+            moves[regId(i->m_dst)].push_back(regId(i->m_src));
+            moves[regId(i->m_src)].push_back(regId(i->m_dst));
+        }
+    }
     std::set<ir::ValueId> spilled;
     std::set<ir::ValueId> callee_saved;
     do {
@@ -1061,9 +1117,23 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         // No colors for x, need spilling
         if (domains.at(*it).empty()) {
             spilled.insert(*it);
+            // Remove the spilled node from the interference graph
+            for (ir::ValueId n: inter_graph.at(*it)) {
+                inter_graph.at(n).erase(*it);
+            }
+            inter_graph.erase(*it);
         } else {
             // Color the node with it first available color
             ir::ValueId c = *domains.at(*it).begin();
+            // Biased coloring: if a vreg this one is copied to or from already has a
+            // color this one can take, use it so that the MOV becomes useless
+            for (ir::ValueId partner: moves[*it]) {
+                const auto partner_color = colors.find(partner);
+                if (partner_color != colors.end() && domains.at(*it).contains(partner_color->second)) {
+                    c = partner_color->second;
+                    break;
+                }
+            }
             colors[*it] = c;
             // If we are about to use a callee-saved register in this function
             // Mark it and we will store and load after coloring to avoid clashing
@@ -1078,7 +1148,7 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
             // Tackling aliasing:
             // If we pick RAX, then EAX, AX can NOT be picked either in the interference
             // We will remove domains.at(*it) and its familly from domains
-            for (ir::ValueId color: x86.family(*domains.at(*it).begin())) {
+            for (ir::ValueId color: x86.family(colors.at(*it))) {
                 // This color can then be removed from the node neighboor's domain
                 for(ir::ValueId n: inter_graph.at(*it)) {
                     domains.at(n).erase(color);
@@ -1199,6 +1269,16 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
             }
         }
 
+        // A MOV from a register to itself does nothing
+        for (MachineBlock& block: fct.blocks()) {
+            block.instrs().remove_if([](const MachineInstruction& i) {
+                return i.m_op == MachineOpcode::MOV &&
+                    i.m_dst.m_kind == MachineOperand::Kind::PREG &&
+                    i.m_src.m_kind == MachineOperand::Kind::PREG &&
+                    i.m_dst.m_preg == i.m_src.m_preg;
+            });
+        }
+
         const MachineOperand rbp = x86.getPREG("RBP");
         const MachineOperand rsp = x86.getPREG("RSP");
         // Inject the 'save' frame (stack) instructions
@@ -1206,7 +1286,7 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
             { MachineOpcode::PUSH, MNONE(), rbp },
             { MachineOpcode::MOV, rbp, rsp }
         };
-        // Now we know the total offset, we need to save if as this function's frame
+        // Now we know the total offset, we need to save it as this function's frame
         // So that its not corrupted by callee function later on.
         // We emit SUB offset, RSP
         // To Same the spilling as the function's frame

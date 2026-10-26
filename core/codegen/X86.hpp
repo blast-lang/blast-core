@@ -76,6 +76,9 @@ private:
     std::vector<ir::ValueId> m_subreg;
 };
 
+// Index in the vreg table of a MachineFunction
+using VregId = ir::ValueId;
+
 struct MachineOperand {
     enum class Kind: std::uint8_t {
         NONE,
@@ -229,14 +232,19 @@ private:
     std::vector<MachineBlock> m_blocks;
     // Blocks are stored in lowering order, so an IR block id is not an index
     std::unordered_map<ir::BlockId, std::size_t> m_block_index;
-    ir::ValueId m_next_vreg;
+    // The vreg table, indexed by VregId
+    std::vector<ir::Type> m_vreg_types;
+    // The colors (Register ids) each vreg can take
+    std::vector<std::set<ir::ValueId>> m_domains;
+    // A fixed vreg has a domain of size 1: it stands for a physical register
+    std::vector<bool> m_fixed;
+    // The vreg standing for each IR value
+    std::unordered_map<ir::ValueId, VregId> m_value_vregs;
     std::list<MachineInstruction> m_prologue;
     std::list<MachineInstruction> m_epilogue;
 
 public:
-    // next_vreg carries over the IR function's value counter: vregs are IR value
-    // ids until an allocator says otherwise, so temps must not reuse one.
-    MachineFunction(ir::FctId id, std::string name, ir::ValueId next_vreg): m_id(id), m_name(std::move(name)), m_blocks(), m_block_index(), m_next_vreg(next_vreg), m_prologue(), m_epilogue() {}
+    MachineFunction(ir::FctId id, std::string name): m_id(id), m_name(std::move(name)), m_blocks(), m_block_index(), m_vreg_types(), m_domains(), m_fixed(), m_value_vregs(), m_prologue(), m_epilogue() {}
 
     ir::FctId id() const { return this->m_id; }
     const std::string& name() const { return this->m_name; }
@@ -270,7 +278,19 @@ public:
         return const_cast<MachineBlock&>(self.getBlock(bid));
     }
 
-    ir::ValueId newVreg() { return this->m_next_vreg++; }
+    VregId newVreg(ir::Type type, std::set<ir::ValueId> domain, bool fixed) {
+        this->m_vreg_types.push_back(type);
+        this->m_domains.push_back(std::move(domain));
+        this->m_fixed.push_back(fixed);
+        return static_cast<VregId>(this->m_vreg_types.size() - 1);
+    }
+
+    std::size_t nbVregs() const { return this->m_vreg_types.size(); }
+    ir::Type vregType(VregId v) const { return this->m_vreg_types[v]; }
+    const std::set<ir::ValueId>& domain(VregId v) const { return this->m_domains[v]; }
+    bool isFixed(VregId v) const { return this->m_fixed[v]; }
+
+    std::unordered_map<ir::ValueId, VregId>& valueVregs() { return this->m_value_vregs; }
 };
 
 class X86 {
@@ -290,6 +310,9 @@ public:
     ir::ValueId getRegId(const std::string& name) const;
     const Register& getReg(const std::string& name) const;
     MachineOperand getPREG(const std::string& name) const;
+    MachineOperand valueVreg(MachineFunction& mfct, ir::ValueId value, ir::Type type) const;
+    MachineOperand fixedVreg(MachineFunction& mfct, const Register* reg, ir::Type type) const;
+    MachineOperand fixedVreg(MachineFunction& mfct, const std::string& name) const;
     const std::set<ir::ValueId>& family(ir::ValueId id) const;
 
 private:
