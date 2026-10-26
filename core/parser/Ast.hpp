@@ -169,7 +169,7 @@ public:
 };
 
 // function call, assignments
-class ExprStmt : public Stmt {
+class ExprStmt: public Stmt {
 public:
     explicit ExprStmt(std::unique_ptr<Expr> expr): Stmt(Kind::ExprStmt), m_expr(std::move(expr)) {}
     const Expr* expr() const { return m_expr.get(); }
@@ -394,7 +394,7 @@ private:
 // ---------------------------------------------------------------------------
 // Root
 // ---------------------------------------------------------------------------
-class TranslationUnit : public ASTNode {
+class TranslationUnit: public ASTNode {
 public:
     TranslationUnit() : ASTNode(Kind::TranslationUnit) {}
     void add(std::unique_ptr<Stmt> stmt) { m_stmts.push_back(std::move(stmt)); }

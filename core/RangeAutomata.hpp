@@ -30,7 +30,7 @@ namespace blast::core {
 
 template<std::totally_ordered T>
     requires Hashable<T>
-class RangeAutomata : public IAutomata {
+class RangeAutomata: public IAutomata {
     using StateInd = blast::core::StateInd;
 
 protected:

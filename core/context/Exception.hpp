@@ -6,7 +6,7 @@
 
 namespace blast::core::context {
 
-class UndeclaredIdentifier : public SemanticError {
+class UndeclaredIdentifier: public SemanticError {
 public:
     UndeclaredIdentifier(std::string name, parser::NodeId node):
         SemanticError("Identifier '" + name + "' is not declared in this scope"),
@@ -20,7 +20,7 @@ private:
     parser::NodeId m_node;
 };
 
-class Redeclaration : public SemanticError {
+class Redeclaration: public SemanticError {
 public:
     Redeclaration(std::string name, parser::NodeId node):
         SemanticError("'" + name + "' is already declared in this scope"),
@@ -34,7 +34,7 @@ private:
     parser::NodeId m_node;
 };
 
-class NotAFunction : public SemanticError {
+class NotAFunction: public SemanticError {
 public:
     NotAFunction(const Symbol* existing, parser::NodeId node):
         SemanticError("'" + std::string(existing->name()) + "' is already declared in this scope and is not a function"),
@@ -48,7 +48,7 @@ private:
     parser::NodeId m_node;
 };
 
-class NotAModule : public SemanticError {
+class NotAModule: public SemanticError {
 public:
     NotAModule(const Symbol* base, parser::NodeId node):
         SemanticError("'" + std::string(base->name()) + "' is not a module"),
@@ -62,7 +62,7 @@ private:
     parser::NodeId m_node;
 };
 
-class UnknownMember : public SemanticError {
+class UnknownMember: public SemanticError {
 public:
     UnknownMember(std::string member, const Symbol* module, parser::NodeId node):
         SemanticError("Unknown member '" + member + "' of module '" + std::string(module->name()) + "'"),
@@ -78,7 +78,7 @@ private:
     parser::NodeId m_node;
 };
 
-class OperandMismatch : public SemanticError {
+class OperandMismatch: public SemanticError {
 public:
     OperandMismatch(std::string op, const Type* lhs, const Type* rhs, parser::NodeId node):
         SemanticError("Operator '" + op + "' has operands of different types '" + lhs->name() + "' and '" + rhs->name() + "'"),
@@ -96,7 +96,7 @@ private:
     parser::NodeId m_node;
 };
 
-class TypeMismatch : public SemanticError {
+class TypeMismatch: public SemanticError {
 public:
     TypeMismatch(const Type* expected, const Type* actual, parser::NodeId node):
         SemanticError("Expected type '" + expected->name() + "' but got '" + actual->name() + "'"),
@@ -112,7 +112,7 @@ private:
     parser::NodeId m_node;
 };
 
-class ConflictingReturnTypes : public SemanticError {
+class ConflictingReturnTypes: public SemanticError {
 public:
     ConflictingReturnTypes(const Type* first, const Type* second):
         SemanticError("Paths return different types '" + first->name() + "' and '" + second->name() + "'"),
@@ -126,7 +126,7 @@ private:
     const Type* m_second;
 };
 
-class UndefinedParameterType : public SemanticError {
+class UndefinedParameterType: public SemanticError {
 public:
     UndefinedParameterType(const parser::VarDecl& param, const parser::FctDecl& function):
         SemanticError("Parameter '" + param.name() + "' of '" + function.name() + "' has an undefined type"),
@@ -142,7 +142,7 @@ private:
     parser::NodeId m_node;
 };
 
-class UndefinedReturnType : public SemanticError {
+class UndefinedReturnType: public SemanticError {
 public:
     explicit UndefinedReturnType(const parser::FctDecl& function):
         SemanticError("Function '" + function.name() + "' has an undefined return type"),
@@ -156,7 +156,7 @@ private:
     parser::NodeId m_node;
 };
 
-class DuplicateMethod : public SemanticError {
+class DuplicateMethod: public SemanticError {
 public:
     DuplicateMethod(const parser::FctDecl& function, const TupleType* args):
         SemanticError("Function '" + function.name() + "' is already defined for '" + args->name() + "'"),
@@ -172,7 +172,7 @@ private:
     parser::NodeId m_node;
 };
 
-class UnresolvedMethod : public SemanticError {
+class UnresolvedMethod: public SemanticError {
 public:
     explicit UnresolvedMethod(const parser::FctDecl& function):
         SemanticError("Function '" + function.name() + "' has no registered method"),

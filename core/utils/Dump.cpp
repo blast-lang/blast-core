@@ -121,7 +121,7 @@ private:
 // --- ASCII tree rendering ------------------------------------------------
 // The node's own one-line label: its kind plus the payload it carries
 // directly, with no recursion into children.
-class LabelVisitor : public AstVisitor<LabelVisitor, std::string> {
+class LabelVisitor: public AstVisitor<LabelVisitor, std::string> {
 public:
     std::string visitIntLiteral(const IntLiteral& n) {
         return "IntLiteral " + std::to_string(n.value());
@@ -167,7 +167,7 @@ using Child = std::pair<std::string, const ASTNode*>;
 // The labelled edges out of a node, in the order they should be drawn. This is
 // the tree-drawing counterpart of ASTVisitor::visitChildren(), which walks the
 // same edges but discards the labels.
-class ChildrenVisitor : public AstVisitor<ChildrenVisitor, std::vector<Child>> {
+class ChildrenVisitor: public AstVisitor<ChildrenVisitor, std::vector<Child>> {
 public:
     std::vector<Child> visitUnaryExpr(const UnaryExpr& n) {
         return {{"", n.operand()}};

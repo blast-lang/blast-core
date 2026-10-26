@@ -344,7 +344,7 @@ protected:
 // https://en.wikipedia.org/wiki/Deterministic_finite_automaton
 // https://cs.wellesley.edu/~cs235/fall10/lectures/14_DFA_operations_revised_2.pdf
 template<Hashable T>
-class Automata : public IAutomata {
+class Automata: public IAutomata {
 public:
     Automata(
         StateInd initial, std::set<StateInd> accepting,

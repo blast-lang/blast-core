@@ -102,20 +102,7 @@ constexpr bool isFloat(Type t) {
     return t.m_kind == Type::Kind::FLOAT;
 }
 
-inline Type fromContextType(const context::Type* t) {
-    // 'Nothing' carries no value, it is what a function returns when it returns nothing
-    if (t != nullptr && t->kind() == context::Type::Kind::Struct && t->name() == "Nothing") {
-        return VOID();
-    }
-    if (t == nullptr || t->kind() != context::Type::Kind::Primitive) {
-        throw CodegenError("[IR] Cannot lower non-primitive type");
-    }
-    const auto* p = static_cast<const context::PrimitiveType*>(t);
-    if (p->name() == "Int" && p->bitWidth() == 64) {
-        return INT(Type::Width::W64);
-    }
-    throw CodegenError("[IR] Unsupported type '" + p->name() + "'");
-}
+Type fromContextType(const context::Type* t);
 
 struct Lireral {
     union {
@@ -445,11 +432,7 @@ public:
     std::vector<Operand>& args() { return this->m_args; }
     const std::vector<Operand>& args() const { return this->m_args; }
 
-    const BasicBlock& getBlock(BlockId bid) const {
-        if (bid >= this->m_blocks.size())
-            throw CodegenError("[Function] Unknown block id " + std::to_string(bid) + " in '" + this->m_name + "'");
-        return this->m_blocks[bid];
-    };
+    const BasicBlock& getBlock(BlockId bid) const;
 
     BasicBlock& getBlock(BlockId bid) {
         const Function& self = *this;
@@ -477,16 +460,7 @@ public:
         return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
     }
 
-    const std::vector<Operand>& callArgs(const Instruction& call) const {
-        if (call.op() != Opcode::CALL) {
-            throw CodegenError("[Function] Not a call in '" + this->m_name + "'");
-        }
-        const std::uint32_t idx = call.rhs().m_lit.m_ui32;
-        if (idx >= this->m_call_args.size()) {
-            throw CodegenError("[Function] Unknown argument list " + std::to_string(idx) + " in '" + this->m_name + "'");
-        }
-        return this->m_call_args[idx];
-    }
+    const std::vector<Operand>& callArgs(const Instruction& call) const;
 
     // CBR spends lhs and rhs on its two targets, so the condition it reads
     // rides in m_result. Bypasses addInstruction, which forces NONE there for
@@ -521,18 +495,8 @@ public:
     std::vector<Function>& fcts() { return this->m_fcts; }
     const std::vector<Function>& fcts() const { return this->m_fcts; }
 
-    Function& getFct(FctId fid) {
-        if (fid >= this->m_fcts.size())
-            throw CodegenError("[Module] Unknown function id " + std::to_string(fid));
-        return this->m_fcts[fid];
-    };
-
-    const Function& getFct(FctId fid) const {
-        if (fid >= this->m_fcts.size()) {
-            throw CodegenError("[Module] Unknown function id " + std::to_string(fid));
-        }
-        return this->m_fcts[fid];
-    }
+    Function& getFct(FctId fid);
+    const Function& getFct(FctId fid) const;
 };
 
 

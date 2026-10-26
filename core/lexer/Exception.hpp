@@ -3,7 +3,7 @@
 
 namespace blast::core::lexer {
 
-class UnknownInput : public LexError {
+class UnknownInput: public LexError {
 public:
     UnknownInput(char character, std::size_t position, SourceLocation location):
         LexError(std::string("Unknown input '") + character + "' (char=" + std::to_string((int)(unsigned char)character) + ")", position, location),

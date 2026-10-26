@@ -357,6 +357,53 @@ Operand SSAIR::visitTranslationUnit(const parser::TranslationUnit& node) {
     return last;
 }
 
+Type fromContextType(const context::Type* t) {
+    // 'Nothing' carries no value, it is what a function returns when it returns nothing
+    if (t != nullptr && t->kind() == context::Type::Kind::Struct && t->name() == "Nothing") {
+        return VOID();
+    }
+    if (t == nullptr || t->kind() != context::Type::Kind::Primitive) {
+        throw NonPrimitiveType(t);
+    }
+    const auto* p = static_cast<const context::PrimitiveType*>(t);
+    if (p->name() == "Int" && p->bitWidth() == 64) {
+        return INT(Type::Width::W64);
+    }
+    throw UnsupportedType(t);
+}
+
+const BasicBlock& Function::getBlock(BlockId bid) const {
+    if (bid >= this->m_blocks.size()) {
+        throw UnknownIRBlock(bid, this->m_name);
+    }
+    return this->m_blocks[bid];
+}
+
+const std::vector<Operand>& Function::callArgs(const Instruction& call) const {
+    if (call.op() != Opcode::CALL) {
+        throw NotACall(call.op(), this->m_name);
+    }
+    const std::uint32_t idx = call.rhs().m_lit.m_ui32;
+    if (idx >= this->m_call_args.size()) {
+        throw UnknownArgumentList(idx, this->m_name);
+    }
+    return this->m_call_args[idx];
+}
+
+Function& Module::getFct(FctId fid) {
+    if (fid >= this->m_fcts.size()) {
+        throw UnknownFunction(fid);
+    }
+    return this->m_fcts[fid];
+}
+
+const Function& Module::getFct(FctId fid) const {
+    if (fid >= this->m_fcts.size()) {
+        throw UnknownFunction(fid);
+    }
+    return this->m_fcts[fid];
+}
+
 const Module& SSAIR::run(const parser::TranslationUnit& unit) {
     // One IR function per function known to the context, in the same order,
     // so an IR FctId is always equal to the context's MethodId

@@ -19,7 +19,7 @@ struct Frame {
     SourceLocation location;
 };
 
-class Exception : public std::runtime_error {
+class Exception: public std::runtime_error {
 public:
     explicit Exception(const std::string& message): std::runtime_error(message) {}
     explicit Exception(const std::runtime_error& e): std::runtime_error(e) {}
@@ -42,7 +42,7 @@ private:
 // Message, frames and locations as a multi-line report for the user.
 std::string describe(const Exception& e);
 
-class LexError : public Exception {
+class LexError: public Exception {
 public:
     explicit LexError(const std::string& message, std::size_t position = 0, SourceLocation location = {}):
         Exception(message), m_position(position), m_location(location) {}
@@ -55,7 +55,7 @@ private:
     SourceLocation m_location;
 };
 
-class ParseError : public Exception {
+class ParseError: public Exception {
 public:
     // position is the index of the offending token in the token stream.
     explicit ParseError(const std::string& message, std::size_t position = 0, SourceLocation location = {}):
@@ -71,7 +71,7 @@ private:
 
 // Raised while resolving names and types: redeclaration, unknown name,
 // ambiguous import, type mismatch.
-class SemanticError : public Exception {
+class SemanticError: public Exception {
 public:
     explicit SemanticError(const std::string& message, SourceLocation location = {}):
         Exception(message), m_location(location) {}
@@ -83,19 +83,19 @@ private:
 };
 
 // Raised while lowering the AST to IR.
-class IRError : public Exception {
+class IRError: public Exception {
 public:
     explicit IRError(const std::string& message): Exception(message) {}
 };
 
 // Raised while lowering the IR to machine code: unknown identifier,
 // unsupported node, unsupported type, ...
-class CodegenError : public Exception {
+class CodegenError: public Exception {
 public:
     explicit CodegenError(const std::string& message): Exception(message) {}
 };
 
-class AutomataError : public Exception {
+class AutomataError: public Exception {
 public:
     AutomataError(const std::string& message, std::size_t state): Exception(message), m_state(state) {}
 

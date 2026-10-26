@@ -4,7 +4,7 @@
 
 namespace blast::core::codegen {
 
-class InvalidBranchCondition : public CodegenError {
+class InvalidBranchCondition: public CodegenError {
 public:
     explicit InvalidBranchCondition(ir::Operand condition):
         CodegenError("[X86] CBR condition is not a comparison"), m_condition(condition) {}
@@ -15,7 +15,7 @@ private:
     ir::Operand m_condition;
 };
 
-class UnsupportedComparison : public CodegenError {
+class UnsupportedComparison: public CodegenError {
 public:
     explicit UnsupportedComparison(ir::Opcode opcode):
         CodegenError("[X86] Unknown comparison (opcode " + std::to_string((int)opcode) + ")"), m_opcode(opcode) {}
@@ -26,7 +26,7 @@ private:
     ir::Opcode m_opcode;
 };
 
-class UnsupportedOpcode : public CodegenError {
+class UnsupportedOpcode: public CodegenError {
 public:
     explicit UnsupportedOpcode(ir::Opcode opcode):
         CodegenError("[X86] Unsupported opcode " + std::to_string((int)opcode)), m_opcode(opcode) {}
@@ -37,7 +37,7 @@ private:
     ir::Opcode m_opcode;
 };
 
-class UnsupportedOperand : public CodegenError {
+class UnsupportedOperand: public CodegenError {
 public:
     explicit UnsupportedOperand(ir::Operand operand):
         CodegenError("[X86] Unsupported operand kind " + std::to_string((int)operand.m_kind)), m_operand(operand) {}
@@ -48,7 +48,7 @@ private:
     ir::Operand m_operand;
 };
 
-class UnknownMachineOpcode : public CodegenError {
+class UnknownMachineOpcode: public CodegenError {
 public:
     explicit UnknownMachineOpcode(MachineOpcode opcode):
         CodegenError("[emit] Unknown opcode " + std::to_string((int)opcode)), m_opcode(opcode) {}
@@ -59,7 +59,7 @@ private:
     MachineOpcode m_opcode;
 };
 
-class UnsupportedMachineOperand : public CodegenError {
+class UnsupportedMachineOperand: public CodegenError {
 public:
     explicit UnsupportedMachineOperand(MachineOperand operand):
         CodegenError("[emit] Unsupported operand kind " + std::to_string((int)operand.m_kind) + " at emit time"), m_operand(operand) {}
@@ -70,7 +70,7 @@ private:
     MachineOperand m_operand;
 };
 
-class MissingRegister : public CodegenError {
+class MissingRegister: public CodegenError {
 public:
     explicit MissingRegister(MachineOperand operand):
         CodegenError("[emit] Physical register operand without a register"), m_operand(operand) {}
@@ -81,7 +81,7 @@ private:
     MachineOperand m_operand;
 };
 
-class UnallocatedRegister : public CodegenError {
+class UnallocatedRegister: public CodegenError {
 public:
     explicit UnallocatedRegister(MachineOperand operand):
         CodegenError("[emit] Virtual register %" + std::to_string(operand.m_vreg) + " left at emit time"), m_operand(operand) {}
@@ -92,7 +92,7 @@ private:
     MachineOperand m_operand;
 };
 
-class UnsupportedWidth : public CodegenError {
+class UnsupportedWidth: public CodegenError {
 public:
     explicit UnsupportedWidth(ir::Type type):
         CodegenError("[emit] Unsupported width " + std::to_string(ir::bits(type))), m_type(type) {}
@@ -103,7 +103,7 @@ private:
     ir::Type m_type;
 };
 
-class UnknownRegister : public CodegenError {
+class UnknownRegister: public CodegenError {
 public:
     explicit UnknownRegister(std::string name):
         CodegenError("[X86] Unknown register '" + name + "'"), m_name(std::move(name)) {}
@@ -114,7 +114,7 @@ private:
     std::string m_name;
 };
 
-class UnknownRegisterId : public CodegenError {
+class UnknownRegisterId: public CodegenError {
 public:
     explicit UnknownRegisterId(ir::ValueId id):
         CodegenError("[X86] Unknown register id " + std::to_string(id)), m_id(id) {}
@@ -125,7 +125,7 @@ private:
     ir::ValueId m_id;
 };
 
-class UnknownBlock : public CodegenError {
+class UnknownBlock: public CodegenError {
 public:
     UnknownBlock(ir::BlockId id, std::string function):
         CodegenError("[MachineFunction] Unknown block id " + std::to_string(id) + " in '" + function + "'"),

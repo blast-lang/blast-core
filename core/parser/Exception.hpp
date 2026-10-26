@@ -23,7 +23,7 @@ inline std::string describeKinds(const std::vector<lexer::Tokenizer::TokenKind>&
 
 } // namespace detail
 
-class UnexpectedToken : public ParseError {
+class UnexpectedToken: public ParseError {
 public:
     using Token = lexer::Tokenizer::Token;
     using TokenKind = lexer::Tokenizer::TokenKind;
@@ -40,7 +40,7 @@ private:
     Token m_found;
 };
 
-class UnknownOperator : public ParseError {
+class UnknownOperator: public ParseError {
 public:
     using Token = lexer::Tokenizer::Token;
 
