@@ -1,8 +1,13 @@
-a::Int = 3;
-b::Int = 2;
+a::Int64 = 3;
+b::Int64 = 2;
 
-func mult(a::Int, b::Int)::Int {
+func mult(a::Int64, b::Int64)::Int64 {
     return a * b;
 }
 
-print(mut(a,b));
+print(mult(a,b));
+
+c::Int8 = 10;
+d::Int8 = 1000;
+
+print(c * d);

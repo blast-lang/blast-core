@@ -195,29 +195,40 @@ const Type* TypeResolver::visitExprStmt(const parser::ExprStmt& node) {
 
 const Type* TypeResolver::visitVarDecl(const parser::VarDecl& node) {
     // We already ScopeResolver, so by this point this node should have a symbol for this node
-    //
     Symbol* v = this->m_ctx->getNodeSymbol(&node);
+    // If the var has an init expr, let's get its type
+    const Type* init_type = nullptr;
+    if (node.hasInit()) {
+        this->visit(node.init());
+        init_type = this->m_ctx->getNodeType(node.init());
+    }
+
+    const Type* declared = nullptr;
     if (node.hasType()) {
         // Lookup the type hint symbol, it was already visited by ScopeResolver
         Symbol* ts = this->m_ctx->getNodeSymbol(node.type());
-        Type* declared = ts ? ts->type() : nullptr;
-        // If undeclared -> Throw ?
-        if (declared) {
-            //std::printf("[AF] Identifier %s is of type %s\n", node.name().c_str(), declared->name().c_str());
-            // Set node's and variable's type
-            this->m_ctx->setNodeType(&node, declared);
-            v->setType(declared);
-            return declared;
-        } else {
-            //std::printf("[AF] Identifier %s has undefined type\n", node.name().c_str());
-        }
+        declared = ts ? ts->type() : nullptr;
     }
-    return nullptr;
+    // If undeclared -> Throw ?
+    if (declared == nullptr) {
+        throw UndefinedVarType(node);
+    }
+
+    // First, check if the declared type does not conflicts with the RHS type
+    if (init_type) {
+
+    }
+
+    // Set node's and variable's type
+    this->m_ctx->setNodeType(&node, declared);
+    v->setType(declared);
+    return declared;
 }
 
 // TODO: type float, bool and string literals once those types exist
 const Type* TypeResolver::visitIntLiteral(const parser::IntLiteral& node) {
-    Symbol* int_s = this->m_ctx->coreScope().lookupLocal("Int");
+    // TODO: Srt literals to Int64 but cast them to the actual type?
+    Symbol* int_s = this->m_ctx->coreScope().lookupLocal("Int64");
     const Type* type = int_s->type();
     this->m_ctx->setNodeType(&node, type);
     return type;
@@ -248,8 +259,8 @@ const Type* TypeResolver::visitBinaryExpr(const parser::BinaryExpr& node) {
 }
 
 const Type* TypeResolver::visitAssign(const parser::Assign& node) {
-    const Type* target = this->visit(node.target());
     const Type* value = this->visit(node.value());
+    const Type* target = this->visit(node.target());
     if (target == nullptr || value == nullptr) {
         return nullptr;
     }

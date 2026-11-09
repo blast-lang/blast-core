@@ -156,6 +156,20 @@ private:
     parser::NodeId m_node;
 };
 
+class UndefinedVarType: public SemanticError {
+public:
+    explicit UndefinedVarType(const parser::VarDecl& var):
+        SemanticError("Variable '" + var.name() + "' has an undefined type", var.location()),
+        m_var(var.name()), m_node(var.id()) {}
+
+    const std::string& var() const { return m_var; }
+    parser::NodeId node() const { return m_node; }
+
+private:
+    std::string m_var;
+    parser::NodeId m_node;
+};
+
 class DuplicateMethod: public SemanticError {
 public:
     DuplicateMethod(const parser::FctDecl& function, const TupleType* args):

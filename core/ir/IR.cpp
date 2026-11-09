@@ -366,8 +366,13 @@ Type fromContextType(const context::Type* t) {
         throw NonPrimitiveType(t);
     }
     const auto* p = static_cast<const context::PrimitiveType*>(t);
-    if (p->name() == "Int" && p->bitWidth() == 64) {
-        return INT(Type::Width::W64);
+    if (p->name().find("Int") != std::string::npos) {
+        switch (p->bitWidth()) {
+            case 8:  return INT(Type::Width::W8);
+            case 16: return INT(Type::Width::W16);
+            case 32: return INT(Type::Width::W32);
+            case 64: return INT(Type::Width::W64);
+        }
     }
     throw UnsupportedType(t);
 }

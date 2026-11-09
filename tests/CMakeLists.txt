@@ -4,6 +4,7 @@ add_executable(blast_tests
     AutomataTest.cpp
     LexerTest.cpp
     AstTest.cpp
+    ResolverTest.cpp
 )
 
 # Automata is header-only template code — include path only, no DLL dependency

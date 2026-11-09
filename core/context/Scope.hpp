@@ -63,8 +63,8 @@ public:
     SymbolId id() const { return this->m_id; }
     std::string_view name() const { return this->m_name; }
 
-    Type* type() { return this->m_type; }
-    void setType(Type* type) { this->m_type = type; }
+    const Type* type() { return this->m_type; }
+    void setType(const Type* type) { this->m_type = type; }
 
     // Set only for Kind::Function symbols
     GenericFunction* function() { return this->m_function; }
@@ -84,7 +84,7 @@ private:
     // Scope it belongs to
     Scope* m_parent_scope;
     // Deduced type of Symbol, deduced from static analysis
-    Type* m_type;
+    const Type* m_type;
     // Method set, for function symbols
     GenericFunction* m_function;
     // Scope of the module, for module symbols

@@ -55,15 +55,46 @@ public:
     AbstractType(std::string name, const Type* super): Type(Kind::Abstract, std::move(name), super) {}
 };
 
+
+/*
+- Signedness: PrimitiveType doesn't store it. Today you'd have to infer it from the name, such as a leading U. I'd add a bool to PrimitiveType next to m_bit_width, set in the constructor, rather than keep string-matching names. fromContextType could then use it for INT vs UINT as well.
+- Signed range: -2^(N-1) to 2^(N-1) - 1.
+- Unsigned range: 0 to 2^N - 1.
+- 64-bit case: 1 << 64 is undefined behavior in C++. For N = 64, signed needs no check because an int64 always fits. Unsigned only needs v >= 0.
+- UInt64 limit: a literal above INT64_MAX can't be held in an int64 at all, so the lexer or parser would need to widen first. I'd leave that alone for now.
+
+The check belongs in TypeResolver::visitVarDecl, after you visit the initializer and compare its type to the declared one. If the initializer is an IntLiteral and the declared type is a different integer type, check the range, then retype the literal node to the declared type with setNodeType. Otherwise it's a TypeMismatch. You'll need a new exception for the out-of-range case, like the ones in context/Exception.hpp.
+*/
+
 class PrimitiveType: public Type {
 public:
-    PrimitiveType(std::string name, const Type* super, std::size_t bitWidth): Type(Kind::Primitive, std::move(name), super), m_bit_width(bitWidth) {}
+    PrimitiveType(std::string name, const Type* super, std::size_t bitWidth, bool msigned): 
+        Type(Kind::Primitive, std::move(name), super), m_bit_width(bitWidth), m_signed(msigned) {}
+    
+    bool isSigned() const { return this->m_signed; }
+
     // The width the declaration asks for, e.g. 64 for Int64. Distinct from
     // the ABI size and alignment the type gets on a given target, which the
     // DataLayout decides.
     std::size_t bitWidth() const { return this->m_bit_width; }
+    std::int64_t minValue() const {
+        if (this->isSigned()) {
+            return static_cast<std::int64_t>(~std::uint64_t{0} << (this->m_bit_width - 1));
+        }
+        return 0;
+    }
+
+    // TODO: Handle booleans
+    std::uint64_t maxValue() const {
+        if (this->isSigned()) {
+            // std::uint64_t{1} is undifined behavior
+            return ~std::uint64_t{0} >> (65 - this->m_bit_width);
+        }
+        return ~std::uint64_t{0} >> (64 - this->m_bit_width);
+    }
 private:
     std::size_t m_bit_width;
+    bool m_signed;
 };
 
 // ------------------------------------
