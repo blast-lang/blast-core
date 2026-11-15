@@ -49,11 +49,11 @@ void DataLayout::registerTypeLayout(const Type* t) {
                 this->registerTypeLayout(field.type);
             }
 
-            // Fields are placed by growing alignment, ties keep declaration order
+            // Fields are placed by decreasing alignment, ties keep declaration order
             std::vector<std::size_t> order(fields.size());
             std::iota(order.begin(), order.end(), 0);
             std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-                return this->m_layouts.at(fields[a].type).m_align < this->m_layouts.at(fields[b].type).m_align;
+                return this->m_layouts.at(fields[a].type).m_align > this->m_layouts.at(fields[b].type).m_align;
             });
 
             // Offsets stay indexed by declaration order

@@ -1,5 +1,6 @@
 #include <core/ir/IR.hpp>
 #include <core/ir/Exception.hpp>
+#include <cstdio>
 #include <iterator>
 #include <set>
 
@@ -238,7 +239,12 @@ Operand SSAIR::visitModuleDecl(const parser::ModuleDecl& node) {
 }
 
 Operand SSAIR::visitStructDecl(const parser::StructDecl& node) {
-    throw UnsupportedConstruct(node);
+    // Trigger Type layout computation through 'sizeof'
+    const context::Type* t = this->m_ctx->getNodeType(&node);
+    const std::size_t size = this->m_ctx->dataLayout().m_sizeof(t);
+    const std::size_t align = this->m_ctx->dataLayout().m_alignof(t);
+    std::printf("[AF] Struct '%s': size %zu, align %zu\n", node.name().c_str(), size, align);
+    return NONE();
 }
 
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {

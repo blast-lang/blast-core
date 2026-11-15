@@ -8,6 +8,7 @@ func mult(a::Int64, b::Int64)::Int64 {
 struct Point {
     x::Int64;
     y::Int64;
+    z::UInt8;
 }
 
 print(mult(a,b));
