@@ -237,6 +237,10 @@ Operand SSAIR::visitModuleDecl(const parser::ModuleDecl& node) {
     throw UnsupportedConstruct(node);
 }
 
+Operand SSAIR::visitStructDecl(const parser::StructDecl& node) {
+    throw UnsupportedConstruct(node);
+}
+
 Operand SSAIR::visitExprStmt(const parser::ExprStmt& node) {
     return this->visit(node.expr());
 }

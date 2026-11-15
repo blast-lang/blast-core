@@ -34,6 +34,33 @@ private:
     parser::NodeId m_node;
 };
 
+class DuplicateField: public SemanticError {
+public:
+    DuplicateField(const parser::FieldDecl& field, const parser::StructDecl& structure):
+        SemanticError("Field '" + field.name() + "' is declared twice in struct '" + structure.name() + "'", field.location()),
+        m_field(field.name()), m_struct(structure.name()), m_node(field.id()) {}
+
+    const std::string& field() const { return m_field; }
+    const std::string& structure() const { return m_struct; }
+    parser::NodeId node() const { return m_node; }
+
+private:
+    std::string m_field;
+    std::string m_struct;
+    parser::NodeId m_node;
+};
+
+class UnsupportedLayout: public SemanticError {
+public:
+    explicit UnsupportedLayout(const Type* type):
+        SemanticError("Type '" + type->name() + "' has no memory layout"), m_type(type) {}
+
+    const Type* type() const { return m_type; }
+
+private:
+    const Type* m_type;
+};
+
 class NotAFunction: public SemanticError {
 public:
     NotAFunction(const Symbol* existing, const parser::ASTNode& node):

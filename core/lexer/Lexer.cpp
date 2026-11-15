@@ -42,6 +42,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     Tokenizer::SA for_stmt           = SA(std::string_view{"for"});
     Tokenizer::SA func_stmt          = SA(std::string_view{"func"});
     Tokenizer::SA module_stmt        = SA(std::string_view{"module"});
+    Tokenizer::SA struct_stmt        = SA(std::string_view{"struct"});
     // Operators
     Tokenizer::SA op_add             = SA('+');
     Tokenizer::SA op_mul             = SA('*');
@@ -86,6 +87,7 @@ Tokenizer::Tokenizer(): m_rules(), m_tokens() {
     this->m_rules.push_back({for_stmt,          0,      Tokenizer::TokenKind::FOR_STMT});
     this->m_rules.push_back({func_stmt,         0,      Tokenizer::TokenKind::FUNC_STMT});
     this->m_rules.push_back({module_stmt,       0,      Tokenizer::TokenKind::MODULE_STMT});
+    this->m_rules.push_back({struct_stmt,       0,      Tokenizer::TokenKind::STRUCT_STMT});
     // Operators
     this->m_rules.push_back({op_add,            0,      Tokenizer::TokenKind::BIN_OP});
     this->m_rules.push_back({op_mul,            0,      Tokenizer::TokenKind::BIN_OP});
@@ -135,6 +137,7 @@ std::string_view Tokenizer::kindName(Tokenizer::TokenKind kind) {
         case Tokenizer::TokenKind::FOR_STMT: return "FOR_STMT";
         case Tokenizer::TokenKind::FUNC_STMT: return "FUNC_STMT";
         case Tokenizer::TokenKind::MODULE_STMT: return "MODULE_STMT";
+        case Tokenizer::TokenKind::STRUCT_STMT: return "STRUCT_STMT";
         case Tokenizer::TokenKind::CONTINUE_STMT: return "CONTINUE_STMT";
         case Tokenizer::TokenKind::RETURN_STMT: return "RETURN_STMT";
         case Tokenizer::TokenKind::BREAK_STMT: return "BREAK_STMT";

@@ -56,6 +56,9 @@ void SimpleParser::parseStmt() {
         this->parseModuleDecl();
         // Return here as we do not expect ';' after a module body
         return;
+    } else if (this->currentToken().m_kind == TokenKind::STRUCT_STMT) {
+        this->parseStructDecl();
+        return;
     }
     else {
         this->parseExpr();
@@ -424,7 +427,7 @@ void SimpleParser::parseLiteral() {
     return;
 }
 
-// Pushes exactly one Identifier -- nothing else. What follows the identifier is
+// Pushes exactly one Identifier, nothing else. What follows the identifier is
 // the caller's business, since only the caller knows the context it is in.
 void SimpleParser::parserIdentifier() {
     if (this->currentToken().m_kind != TokenKind::IDENDIFIER) {
@@ -432,6 +435,56 @@ void SimpleParser::parserIdentifier() {
     }
     const Token& tok = this->advance();
     this->push(std::make_unique<Identifier>(tok.m_value), tok.m_location);
+    return;
+}
+
+void SimpleParser::parseFieldDecl() {
+    this->parserIdentifier();
+    auto name = this->popAs<Identifier>();
+
+    if (this->currentToken().m_kind != TokenKind::COLON_COLON) {
+        throw UnexpectedToken({TokenKind::COLON_COLON}, this->currentToken(), m_pos);
+    }
+    this->advance();
+
+    // Type annotation: an identifier for now, a type expression later.
+    this->parserIdentifier();
+    auto type = this->popAs<Identifier>();
+
+    if (this->currentToken().m_kind != TokenKind::ENDEXPR) {
+        throw UnexpectedToken({TokenKind::ENDEXPR}, this->currentToken(), m_pos);
+    }
+    this->advance();
+
+    const SourceLocation start = name->location();
+    this->push(std::make_unique<FieldDecl>(name->name(), std::move(type)), start);
+    return;
+}
+
+
+void SimpleParser::parseStructDecl() {
+    const SourceLocation start = this->currentToken().m_location;
+    // Skip 'struct' keyword
+    this->advance();
+    // Parse struct name
+    this->parserIdentifier();
+    auto name = this->popAs<Identifier>();
+
+    // Now parse the struct's body
+    if (this->currentToken().m_kind != TokenKind::OPEN_CURLBRAC) {
+        throw UnexpectedToken({TokenKind::OPEN_CURLBRAC}, this->currentToken(), m_pos);
+    }
+    this->advance();
+    std::vector<std::unique_ptr<FieldDecl>> fields;
+    while (this->currentToken().m_kind != TokenKind::CLOSE_CURLBRAC) {
+        if (this->currentToken().m_kind == TokenKind::NONE) {
+            throw UnexpectedToken({TokenKind::CLOSE_CURLBRAC}, this->currentToken(), m_pos);
+        }
+        this->parseFieldDecl();
+        fields.push_back(this->popAs<FieldDecl>());
+    }
+    this->advance();
+    this->push(std::make_unique<StructDecl>(name->name(), std::move(fields)), start);
     return;
 }
 

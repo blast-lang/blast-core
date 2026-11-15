@@ -42,6 +42,7 @@ public:
         VarDecl,
         FctDecl,
         ModuleDecl,
+        StructDecl,
         // --- Statements ---
         ExprStmt,
         IfStmt,
@@ -49,6 +50,8 @@ public:
         ContinueStmt,
         ReturnStmt,
         Block,
+        // --- Struct members ---
+        FieldDecl,
         // --- Root ---
         TranslationUnit,
     };
@@ -361,6 +364,35 @@ public:
 private:
     std::string m_name;
     std::vector<std::unique_ptr<Stmt>> m_stmts;
+};
+
+// A struct field, e.g.  x::Int64
+// Not a Decl: it binds no name into a scope, and its type is required
+class FieldDecl: public ASTNode {
+public:
+    FieldDecl(std::string name, std::unique_ptr<Expr> type):
+        ASTNode(Kind::FieldDecl), m_name(std::move(name)), m_type(std::move(type)) {}
+
+    const std::string& name() const { return m_name; }
+    const Expr* type() const { return m_type.get(); }
+
+private:
+    std::string m_name;
+    std::unique_ptr<Expr> m_type;
+};
+
+// struct Name { fields }
+class StructDecl: public Decl {
+public:
+    StructDecl(std::string name, std::vector<std::unique_ptr<FieldDecl>> fields):
+        Decl(Kind::StructDecl), m_name(std::move(name)), m_fields(std::move(fields)) {}
+
+    const std::string& name() const override { return m_name; }
+    const std::vector<std::unique_ptr<FieldDecl>>& fields() const { return m_fields; }
+
+private:
+    std::string m_name;
+    std::vector<std::unique_ptr<FieldDecl>> m_fields;
 };
 
 // ---------------------------------------------------------------------------

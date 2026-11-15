@@ -23,6 +23,7 @@ public:
     void visitCallExpr(const parser::CallExpr& node);
     void visitMemberExpr(const parser::MemberExpr& node);
     void visitModuleDecl(const parser::ModuleDecl& node);
+    void visitStructDecl(const parser::StructDecl& node);
     void visitExprStmt(const parser::ExprStmt& node);
     void visitIfStmt(const parser::IfStmt& node);
     void visitWhileStmt(const parser::WhileStmt& node);
@@ -54,6 +55,8 @@ public:
     const Type* visitCallExpr(const parser::CallExpr& node);
     const Type* visitMemberExpr(const parser::MemberExpr& node);
     const Type* visitModuleDecl(const parser::ModuleDecl& node);
+    const Type* visitFieldDecl(const parser::FieldDecl& node);
+    const Type* visitStructDecl(const parser::StructDecl& node);
     const Type* visitExprStmt(const parser::ExprStmt& node);
     const Type* visitIfStmt(const parser::IfStmt& node);
     const Type* visitWhileStmt(const parser::WhileStmt& node);

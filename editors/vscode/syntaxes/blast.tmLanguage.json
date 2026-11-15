@@ -5,8 +5,9 @@
     { "include": "#strings" },
     { "include": "#numbers" },
     { "include": "#constants" },
-    { "include": "#keywords" },
     { "include": "#function-decl" },
+    { "include": "#struct-decl" },
+    { "include": "#keywords" },
     { "include": "#type-annotation" },
     { "include": "#function-call" },
     { "include": "#operators" }
@@ -31,7 +32,7 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.control.blast", "match": "\\b(if|else|while|for|return|break|continue)\\b" },
-        { "name": "keyword.declaration.blast", "match": "\\b(func|module)\\b" }
+        { "name": "keyword.declaration.blast", "match": "\\b(func|module|struct)\\b" }
       ]
     },
     "function-decl": {
@@ -39,6 +40,13 @@
       "captures": {
         "1": { "name": "keyword.declaration.blast" },
         "2": { "name": "entity.name.function.blast" }
+      }
+    },
+    "struct-decl": {
+      "match": "\\b(struct)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.declaration.blast" },
+        "2": { "name": "entity.name.type.struct.blast" }
       }
     },
     "type-annotation": {

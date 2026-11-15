@@ -30,12 +30,14 @@ public:
     R visitVarDecl(const VarDecl& n)                   { return self().visitEmpty(); }
     R visitFctDecl(const FctDecl& n)                   { return self().visitEmpty(); }
     R visitModuleDecl(const ModuleDecl& n)             { return self().visitEmpty(); }
+    R visitStructDecl(const StructDecl& n)             { return self().visitEmpty(); }
     R visitExprStmt(const ExprStmt& n)                 { return self().visitEmpty(); }
     R visitIfStmt(const IfStmt& n)                     { return self().visitEmpty(); }
     R visitWhileStmt(const WhileStmt& n)               { return self().visitEmpty(); }
     R visitContinueStmt(const ContinueStmt& n)         { return self().visitEmpty(); }
     R visitReturnStmt(const ReturnStmt& n)             { return self().visitEmpty(); }
     R visitBlock(const Block& n)                       { return self().visitEmpty(); }
+    R visitFieldDecl(const FieldDecl& n)               { return self().visitEmpty(); }
     R visitTranslationUnit(const TranslationUnit& n)   { return self().visitEmpty(); }
     // Non-concrete
     R visitExpr(const Expr& n)                         { return self().visitNode(n); }
@@ -82,6 +84,8 @@ public:
                 return self().visitFctDecl(as<FctDecl>(node));
             case Kind::ModuleDecl:
                 return self().visitModuleDecl(as<ModuleDecl>(node));
+            case Kind::StructDecl:
+                return self().visitStructDecl(as<StructDecl>(node));
             // Statements
             case Kind::ExprStmt:
                 return self().visitExprStmt(as<ExprStmt>(node));
@@ -95,6 +99,9 @@ public:
                 return self().visitReturnStmt(as<ReturnStmt>(node));
             case Kind::Block:
                 return self().visitBlock(as<Block>(node));
+            // Struct members
+            case Kind::FieldDecl:
+                return self().visitFieldDecl(as<FieldDecl>(node));
             // Root
             case Kind::TranslationUnit:
                 return self().visitTranslationUnit(as<TranslationUnit>(node));

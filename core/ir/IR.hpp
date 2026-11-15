@@ -525,6 +525,7 @@ public:
     Operand visitReturnStmt(const parser::ReturnStmt& node);
     Operand visitFctDecl(const parser::FctDecl& node);
     Operand visitModuleDecl(const parser::ModuleDecl& node);
+    Operand visitStructDecl(const parser::StructDecl& node);
     Operand visitVarDecl(const parser::VarDecl& node);
     Operand visitExprStmt(const parser::ExprStmt& node);
     Operand visitIfStmt(const parser::IfStmt& node);

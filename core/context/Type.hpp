@@ -145,7 +145,7 @@ private:
 };
 
 
-// a <: b  -- walk a's super chain looking for b
+// a <: b  walk a's super chain looking for b
 bool isSubtype(const Type* a, const Type* b);
 
 

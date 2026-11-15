@@ -122,6 +122,7 @@ public:
         FOR_STMT,
         FUNC_STMT,
         MODULE_STMT,
+        STRUCT_STMT,
         // Operators
         BIN_OP,
         ASSIGN,

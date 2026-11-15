@@ -110,6 +110,10 @@ protected:
     void parseLiteral();
     void parserIdentifier();
 
+    // Struct definition
+    void parseStructDecl();
+    void parseFieldDecl();
+
     // Root
     void parseTranslationUnit();
 

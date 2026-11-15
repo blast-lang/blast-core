@@ -77,6 +77,9 @@ public:
         }
         return out + ")";
     }
+    std::string visitFieldDecl(const FieldDecl& n) {
+        return "(field-decl " + n.name() + " :: " + visit(n.type()) + ")";
+    }
     std::string visitReturnStmt(const ReturnStmt& n) {
         return "(return " + visit(n.expr()) + ")";
     }
@@ -93,6 +96,13 @@ public:
     }
     std::string visitModuleDecl(const ModuleDecl& n) {
         return join("(module " + n.name(), n.stmts());
+    }
+    std::string visitStructDecl(const StructDecl& n) {
+        std::string out = "(struct-decl " + n.name();
+        for (const auto& field : n.fields()) {
+            out += " " + visit(field.get());
+        }
+        return out + ")";
     }
     std::string visitBlock(const Block& n) {
         std::string out = join("(block", n.stmts());
@@ -154,8 +164,10 @@ public:
     std::string visitReturnStmt(const ReturnStmt&)         { return "ReturnStmt"; }
     std::string visitFctDecl(const FctDecl& n)             { return "FctDecl '" + n.name() + "'"; }
     std::string visitModuleDecl(const ModuleDecl& n)       { return "ModuleDecl '" + n.name() + "'"; }
+    std::string visitStructDecl(const StructDecl& n)       { return "StructDecl '" + n.name() + "'"; }
     std::string visitBlock(const Block&)                   { return "Block"; }
     std::string visitVarDecl(const VarDecl& n)             { return "VarDecl '" + n.name() + "'"; }
+    std::string visitFieldDecl(const FieldDecl& n)         { return "FieldDecl '" + n.name() + "'"; }
     std::string visitTranslationUnit(const TranslationUnit&) { return "TranslationUnit"; }
 
     std::string visitEmpty() { return "<null>"; }
@@ -211,6 +223,9 @@ public:
         }
         return children;
     }
+    std::vector<Child> visitFieldDecl(const FieldDecl& n) {
+        return {{"type: ", n.type()}};
+    }
     std::vector<Child> visitReturnStmt(const ReturnStmt& n) {
         return {{"", n.expr()}};
     }
@@ -227,6 +242,13 @@ public:
     }
     std::vector<Child> visitModuleDecl(const ModuleDecl& n) {
         return sequence(n.stmts());
+    }
+    std::vector<Child> visitStructDecl(const StructDecl& n) {
+        std::vector<Child> children;
+        for (const auto& field : n.fields()) {
+            children.push_back({"field: ", field.get()});
+        }
+        return children;
     }
     std::vector<Child> visitBlock(const Block& n) {
         std::vector<Child> children = sequence(n.stmts());

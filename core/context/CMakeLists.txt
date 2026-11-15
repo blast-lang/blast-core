@@ -3,6 +3,7 @@ add_library(context STATIC
     Scope.hpp Scope.cpp
     ASTContext.hpp ASTContext.cpp
     Resolver.hpp Resolver.cpp
+    DataLayout.hpp DataLayout.cpp
 )
 
 set_target_properties(context PROPERTIES

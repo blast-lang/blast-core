@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/context/Scope.hpp>
+#include <core/context/DataLayout.hpp>
 #include <core/parser/Ast.hpp>
 #include <vector>
 #include <map>
@@ -24,6 +25,8 @@ public:
     // The builtins. Every module glob-imports it, so lookups reach it without
     // naming it; this is for the few places that need the scope itself.
     Scope& coreScope() { return this->m_core; }
+
+    DataLayout& dataLayout() { return this->m_data_layout; }
 
     // Nested scopes outlive the resolver that opens them: a Scope owns the
     // Symbols declared in it, and nodes keep pointing at those symbols.
@@ -122,6 +125,9 @@ private:
     std::unordered_map<parser::NodeId, Symbol*> m_node_symbls;
     // Map function declarations to the method they define
     std::unordered_map<parser::NodeId, Method*> m_node_methods;
+
+    // Memory layout of the types, computed on first query
+    DataLayout m_data_layout;
 };
 
 } // namespace blast::core::context

@@ -1,6 +1,8 @@
 #include <core/context/Resolver.hpp>
 #include <core/context/Exception.hpp>
 #include <cstdio>
+#include <string_view>
+#include <unordered_set>
 
 namespace blast::core::context {
 
@@ -108,6 +110,23 @@ void ScopeResolver::visitModuleDecl(const parser::ModuleDecl& node) {
         this->visit(stmt.get());
     }
     this->m_current_scope = last_scope;
+}
+
+void ScopeResolver::visitStructDecl(const parser::StructDecl& node) {
+    if (this->m_current_scope->hasSymbol(node.name())) {
+        throw Redeclaration(node.name(), node);
+    }
+    Symbol* s = this->m_ctx->declare(*this->m_current_scope, node.name(), Symbol::Kind::Type);
+    this->m_ctx->setNodeSymbol(&node, s);
+
+    // Fields are reached through a value, never by bare name, so they get no scope
+    std::unordered_set<std::string_view> seen;
+    for (const auto& field: node.fields()) {
+        if (!seen.insert(field->name()).second) {
+            throw DuplicateField(*field, node);
+        }
+        this->visit(field->type());
+    }
 }
 
 void ScopeResolver::visitIfStmt(const parser::IfStmt& node) {
@@ -296,9 +315,43 @@ const Type* TypeResolver::visitMemberExpr(const parser::MemberExpr& node) {
 }
 
 const Type* TypeResolver::visitModuleDecl(const parser::ModuleDecl& node) {
+    // We already ScopeResolver, so by this point this node should have a symbol for this node
+    Symbol* v = this->m_ctx->getNodeSymbol(&node);
+
     for (const auto& stmt: node.stmts()) {
         this->visit(stmt.get());
     }
+    return nullptr;
+}
+
+const Type* TypeResolver::visitFieldDecl(const parser::FieldDecl& node) {
+    // FieldDecl.type is the expression detailling the Field's type
+    // No visit here as we assume the type already exists and was already visited !
+    Symbol* s = this->m_ctx->getNodeSymbol(node.type());
+    const Type* type = s->type();
+    this->m_ctx->setNodeType(&node, type);
+    return type;
+}
+
+
+const Type* TypeResolver::visitStructDecl(const parser::StructDecl& node) {
+    std::vector<StructType::Field> fields;
+    fields.reserve(node.fields().size());
+    const Type* curtype = nullptr;
+
+    for (const auto& field: node.fields()) {
+        curtype = this->visit(field.get());
+        if (!curtype) {
+            // throw
+        }
+        fields.push_back({field->name(), curtype});
+    }
+
+    // Register this struct
+    auto t = this->m_ctx->registerType(std::make_unique<StructType>(node.name(), nullptr, std::move(fields)));
+    this->m_ctx->getNodeSymbol(&node)->setType(t);
+    this->m_ctx->setNodeType(&node, t);
+
     return nullptr;
 }
 
