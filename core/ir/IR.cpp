@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iterator>
 #include <set>
+#include <cassert>
 
 namespace blast::core::ir {
 
@@ -152,6 +153,10 @@ Operand SSAIR::visitVarDecl(const parser::VarDecl& node) {
         // Get default assign (0 for int)
         reg = LITERAL(std::int64_t{0});
     }
+    // A literal takes the declared type of the variable, e.g. Int32 for b::Int32 = 2
+    if (reg.m_kind == Operand::Kind::LITERAL) {
+        reg.m_type = fromContextType(v->type());
+    }
     // Register attributer register for variable
     this->setLKO(v, this->m_current_block, reg);
     return reg;
@@ -171,15 +176,47 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
     if (s == nullptr || s->function() == nullptr || s->function()->methods().empty()) {
         throw NotCallable(*node.callee());
     }
-    const Operand callee = FUNCTION(s->function()->methods().front()->id);
 
+    // Dispatch was done earlier, so this call node points to the appropriate method
+    const context::Method* method = this->m_ctx->getNodeMethod(&node);
+
+    // If this is a built-in (default) constructor, we do not call the node as a regular fonction call
+    if (method->linkage == context::Method::Linkage::Constructor) {
+        // Make sure we are working with a struct
+        assert(s->type()->kind() == context::Type::Kind::Struct);
+        const context::StructType* struct_type = static_cast<const context::StructType*>(s->type());
+
+        // Allocate memory to fit the struct
+        Operand struct_ptr = this->addInstruction(LITERAL(std::uint64_t{this->m_ctx->dataLayout().m_sizeof(s->type())}), NONE(), Opcode::ALLOCA, PTR());
+        // Now, the memory needs to be set
+        // We separate member address retrieval and memory write
+        // ptr %1 = LVOA %0, 8
+        // STORE %1, i64 5
+        //
+        // Those can be merged when emmiting machine code:
+        // mov qword [rax+8], 15
+        const std::vector<std::size_t>& offsets = this->m_ctx->dataLayout().m_offsets(struct_type);
+        for (std::size_t i{0}; i < offsets.size(); i++) {
+            // Visit the call expression arguments
+            Operand a = this->visit(node.args()[i].get());
+            // LVOA
+            Operand lv = this->addInstruction(struct_ptr, LITERAL(std::uint64_t{offsets[i]}), Opcode::LVOA, PTR());
+            // STORE
+            Operand st = this->addInstruction(lv, a, Opcode::STORE);
+        }
+
+        return NONE();
+    }
+
+    // Otherwise, standart function call
+    const Operand callee = FUNCTION(method->id);
     std::vector<Operand> args;
     args.reserve(node.args().size());
     for (const auto& arg: node.args()) {
         args.push_back(this->visit(arg.get()));
     }
 
-    // Call  m_ctx->getNodeType(&node)
+    // Call m_ctx->getNodeType(&node)
     // Lower with fromContextType
     // The call returns what the callee's signature (lowered in run) returns
     const Type ret = this->m_main.getFct(callee.m_fct).ret();
@@ -239,11 +276,14 @@ Operand SSAIR::visitModuleDecl(const parser::ModuleDecl& node) {
 }
 
 Operand SSAIR::visitStructDecl(const parser::StructDecl& node) {
-    // Trigger Type layout computation through 'sizeof'
+    // Trigger lazy Type layout computation through 'sizeof'
     const context::Type* t = this->m_ctx->getNodeType(&node);
     const std::size_t size = this->m_ctx->dataLayout().m_sizeof(t);
     const std::size_t align = this->m_ctx->dataLayout().m_alignof(t);
     std::printf("[AF] Struct '%s': size %zu, align %zu\n", node.name().c_str(), size, align);
+
+
+
     return NONE();
 }
 
@@ -429,11 +469,18 @@ const Module& SSAIR::run(const parser::TranslationUnit& unit) {
             continue;
         }
 
+        // Constructors are lowered at the call site, keep a bodiless placeholder so FctId == MethodId
+        if (fct->linkage == context::Method::Linkage::Constructor) {
+            this->m_main.addFct(fct->name, VOID(), true);
+            continue;
+        }
+
         // Lower the signature the context deduced for this method
         const context::FunctionType* signature = fct->type;
         if (signature == nullptr) {
             throw MissingFunctionType(*fct);
         }
+
         this->m_main.addFct(fct->name, fromContextType(signature->returns()), fct->isExternal());
         for (const context::Type* param: signature->args()->elements()) {
             this->m_main.fcts().back().addArg(fromContextType(param));

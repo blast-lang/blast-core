@@ -1,19 +1,11 @@
 a::Int64 = 3;
-b::Int64 = 2;
-
-func mult(a::Int64, b::Int64)::Int64 {
-    return a * b;
-}
+b::Int32 = 2;
 
 struct Point {
     x::Int64;
-    y::Int64;
-    z::UInt8;
+    y::Int32;
 }
 
-print(mult(a,b));
+p::Point = Point(5, b);
 
-c::Int8 = 10;
-d::Int8 = 1000;
-
-print(c * d);
+print(a);

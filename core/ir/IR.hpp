@@ -460,6 +460,11 @@ public:
         return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
     }
 
+    Operand addInstruction(BlockId bid, Operand lhs, Operand rhs, Opcode op, Type result_type) {
+        const Operand result = definesValue(op) ? REGISTER(this->newValue(), result_type) : NONE();
+        return this->getBlock(bid).addInstruction(result, lhs, rhs, op);
+    }
+
     const std::vector<Operand>& callArgs(const Instruction& call) const;
 
     // CBR spends lhs and rhs on its two targets, so the condition it reads
@@ -553,6 +558,10 @@ public:
 
     Operand addInstruction(Operand lhs, Operand rhs, Opcode op) {
         return this->currentFct().addInstruction(this->m_current_block, lhs, rhs, op);
+    }
+
+    Operand addInstruction(Operand lhs, Operand rhs, Opcode op, Type result_type) {
+        return this->currentFct().addInstruction(this->m_current_block, lhs, rhs, op, result_type);
     }
 
     // Set last know operand

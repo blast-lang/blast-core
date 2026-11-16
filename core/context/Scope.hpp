@@ -97,6 +97,7 @@ struct Method {
     enum class Linkage {
         Internal,   // written in this program, lowered to IR
         External,   // lives outside (runtime), only declared in IR
+        Constructor, // default struct constructor, no body, lowered at the call site
     };
 
     MethodId id;

@@ -213,6 +213,22 @@ private:
     parser::NodeId m_node;
 };
 
+class NoMatchingMethod: public SemanticError {
+public:
+    NoMatchingMethod(const Symbol* function, const TupleType* args, const parser::ASTNode& node):
+        SemanticError("No method of '" + std::string(function->name()) + "' matches " + args->name(), node.location()),
+        m_function(function), m_args(args), m_node(node.id()) {}
+
+    const Symbol* function() const { return m_function; }
+    const TupleType* args() const { return m_args; }
+    parser::NodeId node() const { return m_node; }
+
+private:
+    const Symbol* m_function;
+    const TupleType* m_args;
+    parser::NodeId m_node;
+};
+
 class UnresolvedMethod: public SemanticError {
 public:
     explicit UnresolvedMethod(const parser::FctDecl& function):
