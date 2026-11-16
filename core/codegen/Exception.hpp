@@ -84,7 +84,7 @@ private:
 class UnallocatedRegister: public CodegenError {
 public:
     explicit UnallocatedRegister(MachineOperand operand):
-        CodegenError("[emit] Virtual register %" + std::to_string(operand.m_vreg) + " left at emit time"), m_operand(operand) {}
+        CodegenError("[emit] Virtual register %" + std::to_string(operand.m_reg.m_vreg) + " left at emit time"), m_operand(operand) {}
 
     const MachineOperand& operand() const { return m_operand; }
 

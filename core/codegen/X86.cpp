@@ -223,6 +223,21 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
         case ir::Opcode::COPY:
             mblock.addInstruction(MachineOpcode::MOV, dst, lhs);
             break;
+        // For now ALLOCA is malloc(size): size goes in RDI, the pointer comes back in RAX
+        case ir::Opcode::ALLOCA:
+            mblock.addInstruction(MachineOpcode::MOV, this->fixedVreg(mfct, &this->getReg("RDI"), inst.lhs().m_type), lhs);
+            mblock.addInstruction(MachineOpcode::CALL, SYM("malloc", ir::PTR()), MNONE());
+            mblock.addInstruction(MachineOpcode::MOV, dst, this->fixedVreg(mfct, &this->getReg("RAX"), ir::PTR()));
+            break;
+        // dst = base + offset, computed by lea without reading memory
+        case ir::Opcode::LVOA:
+            // x86 displacements are signed 32 bits, field offsets always fit
+            mblock.addInstruction(MachineOpcode::LEA, dst, MEM(lhs.m_reg, static_cast<std::int32_t>(inst.rhs().m_lit.m_ui64), ir::PTR()));
+            break;
+        // [addr] = value, the value's type gives the store width
+        case ir::Opcode::STORE:
+            mblock.addInstruction(MachineOpcode::MOV, MEM(lhs.m_reg, 0, inst.rhs().m_type), rhs);
+            break;
         // Fct call:
         /*
         bar .....
@@ -315,7 +330,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
 
                 // Now, put the argument on the stack in reverse order
                 for (std::size_t i = 0; i < to_stack.size(); i++) {
-                    mblock.addInstruction(MachineOpcode::MOV, MEM(rsp.m_preg, 8 * static_cast<std::int32_t>(i), to_stack[i]->m_type), this->lowerOperand(mfct, *to_stack[i]));
+                    mblock.addInstruction(MachineOpcode::MOV, MEM(rsp.m_reg, 8 * static_cast<std::int32_t>(i), to_stack[i]->m_type), this->lowerOperand(mfct, *to_stack[i]));
                 }
             }
 
@@ -403,7 +418,8 @@ MachineOperand X86::valueVreg(MachineFunction& mfct, ir::ValueId value, ir::Type
     for (const Register& r: this->m_registers) {
         if (
             !r.reserved() &&
-            r.type().m_kind == type.m_kind &&
+            // A pointer is a 64 bits integer to the hardware, so it lives in INT registers
+            (r.type().m_kind == type.m_kind || (type.m_kind == ir::Type::Kind::PTR && r.type().m_kind == ir::Type::Kind::INT)) &&
             r.type().m_width >= type.m_width
         ) {
             domain.insert(r.id());
@@ -867,13 +883,18 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
     // use[i] is the set of operand (register) used/read by instruction i
     // wrt[i] is the set of operand (register) overwritten by instruction i
     auto isVreg = [](const MachineOperand& operand) {
-        return operand.m_kind == MachineOperand::Kind::VREG;
+        return operand.isVreg();
     };
 
     // Liveness is about values, not operand slots: the same vreg read by two
     // instructions must compare equal
     auto regId = [](const MachineOperand& operand) -> ir::ValueId {
-        return operand.m_vreg;
+        return operand.m_reg.m_vreg;
+    };
+
+    // A MEM whose base is still a vreg: that base is read wherever the MEM appears, even as dst
+    auto hasVirtualBase = [](const MachineOperand& operand) {
+        return operand.m_kind == MachineOperand::Kind::MEM && operand.m_base.m_virtual;
     };
 
     // A physical register is never a value to colour, it is a constraint, so it
@@ -886,6 +907,12 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         use[instr] = {};
         wrt[instr] = {};
         clobber[instr] = {};
+        if (hasVirtualBase(instr->m_src)) {
+            use[instr].insert(instr->m_src.m_base.m_vreg);
+        }
+        if (hasVirtualBase(instr->m_dst)) {
+            use[instr].insert(instr->m_dst.m_base.m_vreg);
+        }
         if (
             instr->m_op == MachineOpcode::MOV ||
             instr->m_op == MachineOpcode::ADD ||
@@ -987,11 +1014,17 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
     std::set<ir::ValueId> operands;
     for (auto it = order.begin(); it != order.end(); ++it) {
         MachineInstruction* i = *it;
-        if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
+        if (isVreg(i->m_src)) {
             operands.insert(regId(i->m_src));
         }
-        if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
+        if (isVreg(i->m_dst)) {
             operands.insert(regId(i->m_dst));
+        }
+        if (hasVirtualBase(i->m_src)) {
+            operands.insert(i->m_src.m_base.m_vreg);
+        }
+        if (hasVirtualBase(i->m_dst)) {
+            operands.insert(i->m_dst.m_base.m_vreg);
         }
     }
 
@@ -1234,7 +1267,11 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         // Where, relative to RBP, does the spilled register leaves for now
         // Let's assume we reserve 8 bytes for each spilled vreg for now
         auto typeOf = [&](MachineInstruction* i, ir::ValueId s) -> ir::Type {
-            if (i->m_dst.m_kind == MachineOperand::Kind::VREG && regId(i->m_dst) == s) {
+            // A MEM base holds an address, the MEM's own m_type is the pointee's type
+            if ((hasVirtualBase(i->m_src) && i->m_src.m_base.m_vreg == s) || (hasVirtualBase(i->m_dst) && i->m_dst.m_base.m_vreg == s)) {
+                return ir::PTR();
+            }
+            if (isVreg(i->m_dst) && regId(i->m_dst) == s) {
                 return i->m_dst.m_type;
             }
             return i->m_src.m_type;
@@ -1269,11 +1306,17 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
     if (spilled.size() == 0) {
         for (auto it = order.begin(); it != order.end(); ++it) {
             MachineInstruction* i = *it;
-            if (i->m_src.m_kind == MachineOperand::Kind::VREG) {
+            if (isVreg(i->m_src)) {
                 i->m_src = PREG(&x86.registers()[colors.at(regId(i->m_src))], i->m_src.m_type);
             }
-            if (i->m_dst.m_kind == MachineOperand::Kind::VREG) {
+            if (isVreg(i->m_dst)) {
                 i->m_dst = PREG(&x86.registers()[colors.at(regId(i->m_dst))], i->m_dst.m_type);
+            }
+            if (hasVirtualBase(i->m_src)) {
+                i->m_src.m_base = Reg::phys(&x86.registers()[colors.at(i->m_src.m_base.m_vreg)]);
+            }
+            if (hasVirtualBase(i->m_dst)) {
+                i->m_dst.m_base = Reg::phys(&x86.registers()[colors.at(i->m_dst.m_base.m_vreg)]);
             }
         }
 
@@ -1281,9 +1324,9 @@ void allocate(MachineFunction& fct, X86& x86, std::int32_t stack_offset) {
         for (MachineBlock& block: fct.blocks()) {
             block.instrs().remove_if([](const MachineInstruction& i) {
                 return i.m_op == MachineOpcode::MOV &&
-                    i.m_dst.m_kind == MachineOperand::Kind::PREG &&
-                    i.m_src.m_kind == MachineOperand::Kind::PREG &&
-                    i.m_dst.m_preg == i.m_src.m_preg;
+                    i.m_dst.isPreg() &&
+                    i.m_src.isPreg() &&
+                    i.m_dst.m_reg.m_preg == i.m_src.m_reg.m_preg;
             });
         }
 

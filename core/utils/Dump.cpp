@@ -442,12 +442,13 @@ std::string machineOpcodeName(codegen::MachineOpcode op) {
 std::string machineOperandText(const codegen::MachineOperand& op) {
     switch (op.m_kind) {
         case codegen::MachineOperand::Kind::NONE: return "";
-        case codegen::MachineOperand::Kind::VREG: return "%" + std::to_string(op.m_vreg);
-        case codegen::MachineOperand::Kind::PREG: return regName(op.m_preg);
+        case codegen::MachineOperand::Kind::REG:
+            return op.m_reg.m_virtual ? "%" + std::to_string(op.m_reg.m_vreg) : regName(op.m_reg.m_preg);
         case codegen::MachineOperand::Kind::SYM:  return op.m_sym;
         case codegen::MachineOperand::Kind::RIP:  return op.m_sym + "(rip)";
         case codegen::MachineOperand::Kind::MEM:
-            return "[" + regName(op.m_preg) + (op.m_offset < 0 ? "" : "+") + std::to_string(op.m_offset) + "]";
+            return "[" + (op.m_base.m_virtual ? "%" + std::to_string(op.m_base.m_vreg) : regName(op.m_base.m_preg))
+                 + (op.m_offset < 0 ? "" : "+") + std::to_string(op.m_offset) + "]";
         case codegen::MachineOperand::Kind::LIT:
             return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
     }
@@ -503,19 +504,24 @@ std::string mnemonic(codegen::MachineOpcode op) {
 
 std::string attOperandText(const codegen::MachineOperand& op) {
     switch (op.m_kind) {
-        case codegen::MachineOperand::Kind::PREG: {
-            if (op.m_preg == nullptr) {
+        case codegen::MachineOperand::Kind::REG: {
+            if (op.m_reg.m_virtual) {
+                throw codegen::UnallocatedRegister(op);
+            }
+            if (op.m_reg.m_preg == nullptr) {
                 throw codegen::MissingRegister(op);
             }
-            std::string text = op.m_preg->label();
+            std::string text = op.m_reg.m_preg->label();
             for (char& c : text) {
                 c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             }
             return "%" + text;
         }
         case codegen::MachineOperand::Kind::MEM: {
-            codegen::MachineOperand base = op;
-            base.m_kind = codegen::MachineOperand::Kind::PREG;
+            if (op.m_base.m_virtual) {
+                throw codegen::UnallocatedRegister(op);
+            }
+            const codegen::MachineOperand base = codegen::PREG(op.m_base.m_preg, op.m_type);
             return std::to_string(op.m_offset) + "(" + attOperandText(base) + ")";
         }
         case codegen::MachineOperand::Kind::SYM:
@@ -524,8 +530,6 @@ std::string attOperandText(const codegen::MachineOperand& op) {
             return op.m_sym + "(%rip)";
         case codegen::MachineOperand::Kind::LIT:
             return "$" + std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
-        case codegen::MachineOperand::Kind::VREG:
-            throw codegen::UnallocatedRegister(op);
         default:
             throw codegen::UnsupportedMachineOperand(op);
     }
@@ -533,19 +537,24 @@ std::string attOperandText(const codegen::MachineOperand& op) {
 
 std::string intelOperandText(const codegen::MachineOperand& op) {
     switch (op.m_kind) {
-        case codegen::MachineOperand::Kind::PREG: {
-            if (op.m_preg == nullptr) {
+        case codegen::MachineOperand::Kind::REG: {
+            if (op.m_reg.m_virtual) {
+                throw codegen::UnallocatedRegister(op);
+            }
+            if (op.m_reg.m_preg == nullptr) {
                 throw codegen::MissingRegister(op);
             }
-            std::string text = op.m_preg->label();
+            std::string text = op.m_reg.m_preg->label();
             for (char& c : text) {
                 c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             }
             return text;
         }
         case codegen::MachineOperand::Kind::MEM: {
-            codegen::MachineOperand base = op;
-            base.m_kind = codegen::MachineOperand::Kind::PREG;
+            if (op.m_base.m_virtual) {
+                throw codegen::UnallocatedRegister(op);
+            }
+            const codegen::MachineOperand base = codegen::PREG(op.m_base.m_preg, op.m_type);
             return ptrSize(op.m_type) + "[" + intelOperandText(base)
                  + (op.m_offset < 0 ? "" : "+") + std::to_string(op.m_offset) + "]";
         }
@@ -555,8 +564,6 @@ std::string intelOperandText(const codegen::MachineOperand& op) {
             return "[rip + " + op.m_sym + "]";
         case codegen::MachineOperand::Kind::LIT:
             return std::to_string(static_cast<std::int64_t>(op.m_lit.m_i64));
-        case codegen::MachineOperand::Kind::VREG:
-            throw codegen::UnallocatedRegister(op);
         default:
             throw codegen::UnsupportedMachineOperand(op);
     }
@@ -575,7 +582,7 @@ std::string attInstructionText(const codegen::MachineInstruction& instr) {
         // operand it reads.
         std::string read = op;
         if (
-            instr.m_src.m_kind == codegen::MachineOperand::Kind::PREG ||
+            instr.m_src.isPreg() ||
             instr.m_src.m_kind == codegen::MachineOperand::Kind::MEM
         ) {
             read += widthSuffix(instr.m_src.m_type);
@@ -584,7 +591,7 @@ std::string attInstructionText(const codegen::MachineInstruction& instr) {
     }
     std::string head = op;
     if (
-        instr.m_dst.m_kind == codegen::MachineOperand::Kind::PREG ||
+        instr.m_dst.isPreg() ||
         instr.m_dst.m_kind == codegen::MachineOperand::Kind::MEM
     ) {
         head += widthSuffix(instr.m_dst.m_type);

@@ -79,32 +79,45 @@ private:
 // Index in the vreg table of a MachineFunction
 using VregId = ir::ValueId;
 
+// A register reference: virtual before register allocation, physical after
+struct Reg {
+    bool m_virtual;
+    union {
+        ir::ValueId     m_vreg;
+        const Register* m_preg;
+    };
+
+    static Reg virt(ir::ValueId v) { return { .m_virtual = true, .m_vreg = v }; }
+    static Reg phys(const Register* r) { return { .m_virtual = false, .m_preg = r }; }
+};
+
 struct MachineOperand {
     enum class Kind: std::uint8_t {
         NONE,
-        // Virtual register
-        VREG,
-        // Physical register after regestir allocation
-        PREG,
+        // A register in m_reg, virtual before register allocation and physical after
+        REG,
         LIT,
         // A bare assembler label, as a CALL target
         SYM,
         // The same label taken relative to RIP, as a LEA source
         RIP,
-        // Memory at m_preg + m_offset, like [RBP-8]
+        // Memory at m_base + m_offset, like [RBP-8] or [%3+8]
         MEM
     };
 
     Kind     m_kind;
     ir::Type m_type;
     union {
-        ir::ValueId     m_vreg;
-        const Register* m_preg;
-        ir::Lireral     m_lit;
+        Reg         m_reg;
+        ir::Lireral m_lit;
+        Reg         m_base;
     };
     // A union cannot hold a std::string, so SYM and RIP keep their name here
     std::string m_sym;
     std::int32_t m_offset = 0;
+
+    bool isVreg() const { return this->m_kind == Kind::REG && this->m_reg.m_virtual; }
+    bool isPreg() const { return this->m_kind == Kind::REG && !this->m_reg.m_virtual; }
 };
 
 inline MachineOperand MNONE() {
@@ -117,17 +130,17 @@ inline MachineOperand MNONE() {
 
 inline MachineOperand VREG(ir::ValueId v, ir::Type t) {
     return {
-        .m_kind = MachineOperand::Kind::VREG,
+        .m_kind = MachineOperand::Kind::REG,
         .m_type = t,
-        .m_vreg = v
+        .m_reg = Reg::virt(v)
     };
 }
 
 inline MachineOperand PREG(const Register* r, ir::Type t) {
     return {
-        .m_kind = MachineOperand::Kind::PREG,
+        .m_kind = MachineOperand::Kind::REG,
         .m_type = t,
-        .m_preg = r
+        .m_reg = Reg::phys(r)
     };
 }
 
@@ -135,14 +148,18 @@ inline MachineOperand PREG(const Register* r) {
     return PREG(r, r->type());
 }
 
-inline MachineOperand MEM(const Register* base, std::int32_t offset, ir::Type t) {
+inline MachineOperand MEM(Reg base, std::int32_t offset, ir::Type t) {
     return {
         .m_kind = MachineOperand::Kind::MEM,
         .m_type = t,
-        .m_preg = base,
+        .m_base = base,
         .m_sym = "",
         .m_offset = offset
     };
+}
+
+inline MachineOperand MEM(const Register* base, std::int32_t offset, ir::Type t) {
+    return MEM(Reg::phys(base), offset, t);
 }
 
 inline MachineOperand SYM(std::string name, ir::Type t) {
