@@ -80,18 +80,23 @@ void ScopeResolver::visitCallExpr(const parser::CallExpr& node) {
 
 void ScopeResolver::visitMemberExpr(const parser::MemberExpr& node) {
     this->visit(node.base());
+
     Symbol* base = this->m_ctx->getNodeSymbol(node.base());
     if (base == nullptr) {
         return;
     }
-    if (base->kind() != Symbol::Kind::Module) {
-        throw NotAModule(base, node);
-    }
-    Symbol* member = base->moduleScope()->lookupLocal(node.member());
-    if (member == nullptr) {
-        throw UnknownMember(node.member(), base, node);
+
+    if (base->kind() == Symbol::Kind::Module) {
+        // throw NotAModule(base, node);
+        Symbol* member = base->moduleScope()->lookupLocal(node.member());
+        if (member == nullptr) {
+            throw UnknownMember(node.member(), base, node);
+        } else {
+            this->m_ctx->setNodeSymbol(&node, member);
+        }
     } else {
-        this->m_ctx->setNodeSymbol(&node, member);
+        // Accessing Variable or Parameter's member do not affect the scope
+        return;
     }
 }
 
@@ -349,9 +354,31 @@ const Type* TypeResolver::visitCallExpr(const parser::CallExpr& node) {
 }
 
 const Type* TypeResolver::visitMemberExpr(const parser::MemberExpr& node) {
-    this->visit(node.base());
+    const Type* base_type = this->visit(node.base());
     Symbol* s = this->m_ctx->getNodeSymbol(&node);
-    return s ? s->type() : nullptr;
+
+    // ScopeResolver only gives a symbol to module members, like A.f
+    if (s != nullptr) {
+        return s->type();
+    }
+
+    // We are not accessing a member !
+    if (base_type == nullptr || base_type->kind() != Type::Kind::Struct) {
+        throw UnknownField(node.member(), base_type, node);
+    }
+
+    const StructType* stype = static_cast<const StructType*>(base_type);
+    // The member's type is the type of the field with the same name
+    for (std::size_t i = 0; i < stype->fields().size(); i++) {
+        const StructType::Field& field = stype->fields()[i];
+        if (field.name == node.member()) {
+            this->m_ctx->setNodeType(&node, field.type);
+            // Record field index, usefull when lowering into IR
+            this->m_ctx->setNodeField(&node, i);
+            return field.type;
+        }
+    }
+    throw UnknownField(node.member(), base_type, node);
 }
 
 const Type* TypeResolver::visitModuleDecl(const parser::ModuleDecl& node) {

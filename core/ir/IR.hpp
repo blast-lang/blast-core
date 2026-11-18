@@ -280,8 +280,7 @@ enum class Opcode: std::uint8_t {
     // Lower LOAD and STORE. LOAD becomes mov dst, [addr] and STORE becomes mov [addr], value.
     ALLOCA, LOAD, STORE,
     // Equivalent of 'getelementptr' from llvm
-    // "Load value of addr"
-    LVOA,
+    GEP,
     // Terminators: BR .. end
     BR, CBR, RET,
 };

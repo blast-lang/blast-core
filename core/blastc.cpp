@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
         std::printf("blastc: wrote %s and %s\n", asm_path.c_str(), stem.c_str());
 
         std::puts("--- RUN ---");
-        const std::string run = "./" + stem;
+        const std::string run = "time ./" + stem;
         std::printf("blastc: $ %s\n", run.c_str());
         std::fflush(stdout);
         const int status = std::system(run.c_str());

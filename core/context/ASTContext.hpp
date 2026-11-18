@@ -5,6 +5,7 @@
 #include <core/parser/Ast.hpp>
 #include <vector>
 #include <map>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -49,6 +50,16 @@ public:
 
     void setNodeMethod(const parser::ASTNode* node, Method* method) {
         this->m_node_methods.emplace(node->id(), method);
+    }
+
+    void setNodeField(const parser::ASTNode* node, std::size_t index) {
+        this->m_node_fields.emplace(node->id(), index);
+    }
+
+    // Empty for nodes that are not a struct member access
+    std::optional<std::size_t> getNodeField(const parser::ASTNode* node) {
+        auto it = this->m_node_fields.find(node->id());
+        return it == this->m_node_fields.end() ? std::nullopt : std::optional<std::size_t>(it->second);
     }
 
     Method* getNodeMethod(const parser::ASTNode* node) {
@@ -125,6 +136,8 @@ private:
     std::unordered_map<parser::NodeId, Symbol*> m_node_symbls;
     // Map function declarations to the method they define
     std::unordered_map<parser::NodeId, Method*> m_node_methods;
+    // Map struct member accesses to the declaration index of the field they read
+    std::unordered_map<parser::NodeId, std::size_t> m_node_fields;
 
     // Memory layout of the types, computed on first query
     DataLayout m_data_layout;

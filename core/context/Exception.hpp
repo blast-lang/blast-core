@@ -105,6 +105,22 @@ private:
     parser::NodeId m_node;
 };
 
+class UnknownField: public SemanticError {
+public:
+    UnknownField(std::string member, const Type* type, const parser::ASTNode& node):
+        SemanticError((type == nullptr ? std::string("Untyped value") : "Type '" + type->name() + "'") + " has no field '" + member + "'", node.location()),
+        m_member(std::move(member)), m_type(type), m_node(node.id()) {}
+
+    const std::string& member() const { return m_member; }
+    const Type* type() const { return m_type; }
+    parser::NodeId node() const { return m_node; }
+
+private:
+    std::string m_member;
+    const Type* m_type;
+    parser::NodeId m_node;
+};
+
 class OperandMismatch: public SemanticError {
 public:
     OperandMismatch(std::string op, const Type* lhs, const Type* rhs, const parser::ASTNode& node):

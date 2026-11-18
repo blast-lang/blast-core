@@ -190,7 +190,7 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
         Operand struct_ptr = this->addInstruction(LITERAL(std::uint64_t{this->m_ctx->dataLayout().m_sizeof(s->type())}), NONE(), Opcode::ALLOCA, PTR());
         // Now, the memory needs to be set
         // We separate member address retrieval and memory write
-        // ptr %1 = LVOA %0, 8
+        // ptr %1 = GEP %0, 8
         // STORE %1, i64 5
         //
         // Those can be merged when emmiting machine code:
@@ -199,13 +199,15 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
         for (std::size_t i{0}; i < offsets.size(); i++) {
             // Visit the call expression arguments
             Operand a = this->visit(node.args()[i].get());
-            // LVOA
-            Operand lv = this->addInstruction(struct_ptr, LITERAL(std::uint64_t{offsets[i]}), Opcode::LVOA, PTR());
+            // GEP
+            Operand gep = this->addInstruction(struct_ptr, LITERAL(std::uint64_t{offsets[i]}), Opcode::GEP, PTR());
             // STORE
-            Operand st = this->addInstruction(lv, a, Opcode::STORE);
+            // TODO: a struct field is inline, copy the argument's bytes field by field instead of storing its pointer
+            Operand st = this->addInstruction(gep, a, Opcode::STORE);
         }
 
-        return NONE();
+        // The valude of call 'Point(a, b)' is the ptr pointing to struct 'Point' start
+        return struct_ptr;
     }
 
     // Otherwise, standart function call
@@ -224,6 +226,27 @@ Operand SSAIR::visitCallExpr(const parser::CallExpr& node) {
 }
 
 Operand SSAIR::visitMemberExpr(const parser::MemberExpr& node) {
+    const Operand base = this->visit(node.base());
+    const context::Type* t = this->m_ctx->getNodeType(node.base());
+
+    // Struct Member access
+    if (t->kind() == context::Type::Kind::Struct) {
+        // Is that case 'base" is the Struct ptr, its location in memory
+        const context::StructType* struct_type = static_cast<const context::StructType*>(t);
+        // Let's find 'node' and its memory layout information within the struct
+        std::optional<std::size_t> member_index = this->m_ctx->getNodeField(&node);
+        if (member_index) {
+            std::size_t member_offset = this->m_ctx->dataLayout().m_offsets(struct_type)[*member_index];
+            // GEP
+            Operand gep = this->addInstruction(base, LITERAL(std::uint64_t{member_offset}), Opcode::GEP, PTR());
+            // LOAD into an SSA var
+            // TODO: a struct field is inline, its address 'gep' is already its value, return it without LOAD
+            Operand ld = this->addInstruction(gep, NONE(), Opcode::LOAD, fromContextType(struct_type->fields()[*member_index].type));
+            return ld;
+        } else {
+            throw std::runtime_error("Fatal member access");
+        }
+    }
     throw UnsupportedConstruct(node);
 }
 
@@ -281,8 +304,6 @@ Operand SSAIR::visitStructDecl(const parser::StructDecl& node) {
     const std::size_t size = this->m_ctx->dataLayout().m_sizeof(t);
     const std::size_t align = this->m_ctx->dataLayout().m_alignof(t);
     std::printf("[AF] Struct '%s': size %zu, align %zu\n", node.name().c_str(), size, align);
-
-
 
     return NONE();
 }
@@ -411,6 +432,10 @@ Type fromContextType(const context::Type* t) {
     // 'Nothing' carries no value, it is what a function returns when it returns nothing
     if (t != nullptr && t->kind() == context::Type::Kind::Struct && t->name() == "Nothing") {
         return VOID();
+    }
+    // A struct value is a pointer to its memory, passing it does not copy it (it is immutable)
+    if (t != nullptr && t->kind() == context::Type::Kind::Struct) {
+        return PTR();
     }
     if (t == nullptr || t->kind() != context::Type::Kind::Primitive) {
         throw NonPrimitiveType(t);

@@ -230,7 +230,7 @@ void X86::lowerInstruction(MachineFunction& mfct, const ir::Function& fct, Machi
             mblock.addInstruction(MachineOpcode::MOV, dst, this->fixedVreg(mfct, &this->getReg("RAX"), ir::PTR()));
             break;
         // dst = base + offset, computed by lea without reading memory
-        case ir::Opcode::LVOA:
+        case ir::Opcode::GEP:
             // x86 displacements are signed 32 bits, field offsets always fit
             mblock.addInstruction(MachineOpcode::LEA, dst, MEM(lhs.m_reg, static_cast<std::int32_t>(inst.rhs().m_lit.m_ui64), ir::PTR()));
             break;

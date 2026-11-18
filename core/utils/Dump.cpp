@@ -314,7 +314,7 @@ const char* opcodeName(ir::Opcode op) {
         case ir::Opcode::ALLOCA: return "ALLOCA";
         case ir::Opcode::LOAD: return "LOAD";
         case ir::Opcode::STORE: return "STORE";
-        case ir::Opcode::LVOA: return "LVOA";
+        case ir::Opcode::GEP: return "GEP";
         case ir::Opcode::BR:   return "BR";
         case ir::Opcode::CBR:  return "CBR";
         case ir::Opcode::RET:  return "RET";

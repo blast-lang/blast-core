@@ -1,11 +1,17 @@
 a::Int64 = 3;
-b::Int32 = 2;
+b::Int64 = 2;
 
 struct Point {
     x::Int64;
-    y::Int32;
+    y::Int64;
 }
 
-p::Point = Point(5, b);
+func test(p::Point)::Int64 {
+    return p.x + p.y;
+}
 
-print(a);
+
+point::Point = Point(5, b);
+
+
+print(test(point));
